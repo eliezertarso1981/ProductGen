@@ -1,0 +1,41 @@
+---
+title: Visão geral
+---
+
+# Arquitetura
+
+O ProductGen usa uma arquitetura simples e explícita: backend Fastify, Postgres como fonte de verdade e SQL puro.
+
+## Decisões principais
+
+- TypeScript + Node.js no backend.
+- Fastify como framework HTTP.
+- `pg` para acesso direto ao Postgres.
+- Zod para validação de entrada.
+- JWT com `jose`.
+- Sem ORM.
+
+## Por que sem ORM
+
+O schema usa recursos avançados do Postgres:
+
+- Row-Level Security.
+- `SET LOCAL` para contexto de workspace.
+- Triggers genéricos de auditoria.
+- State machine de lifecycle no banco.
+- Particionamento de `entity_events`.
+- Tipos enum nativos.
+- `ltree` para hierarquia de roadmap.
+
+Essas escolhas ficam mais transparentes e previsíveis com SQL puro.
+
+## Regras de acesso ao banco
+
+Toda operação em tabela de domínio deve usar `withWorkspaceTx`, que seta:
+
+```sql
+SET LOCAL app.current_workspace = '<workspace-id>';
+SET LOCAL app.current_actor = '<user-id>';
+```
+
+Sem isso, RLS deve bloquear os dados.

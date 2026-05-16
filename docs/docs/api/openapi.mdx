@@ -1,0 +1,37 @@
+---
+title: OpenAPI e Scalar
+---
+
+# OpenAPI e Scalar
+
+A documentação visual da API fica em [API Reference](/api), renderizada com Scalar dentro do Docusaurus.
+
+## Fonte do contrato
+
+O contrato OpenAPI nasce no backend Fastify, a partir dos schemas registrados nas rotas.
+
+Durante o desenvolvimento, a API também expõe:
+
+```text
+GET /openapi.json
+```
+
+Para atualizar a cópia estática usada pelo Docusaurus:
+
+```bash
+cd docs
+npm run openapi:sync
+```
+
+Isso gera:
+
+```text
+docs/static/openapi/productgen.json
+```
+
+## Fluxo recomendado
+
+1. Alterar schemas/rotas no backend.
+2. Rodar testes do backend.
+3. Exportar OpenAPI.
+4. Conferir a página `/api` no Docusaurus.

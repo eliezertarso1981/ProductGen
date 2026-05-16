@@ -1,0 +1,45 @@
+---
+title: Lifecycle
+---
+
+# Lifecycle
+
+O lifecycle é uma regra de negócio de primeira classe. As transições válidas ficam na tabela `lifecycle_transitions` e são validadas por trigger no banco.
+
+## Fluxos principais
+
+### Evidence
+
+```text
+new → triaged → linked → archived
+```
+
+### Pain
+
+```text
+identified → investigating → prioritized → addressed → resolved
+```
+
+`discarded` exige `discard_reason`.
+
+### Hypothesis
+
+```text
+formulated → validating → validated → in_execution → delivered
+```
+
+Estados como `invalidated` e `discarded` exigem `outcome_summary`.
+
+### Roadmap item
+
+```text
+proposed → planned → in_development → in_validation → delivered → measuring_outcome
+```
+
+`cancelled` exige `cancel_reason`; `rolled_back` exige `rollback_reason`.
+
+## Regras críticas
+
+- Hipótese só vai para `validated` se houver experimento `analyzed` com `result = validated`.
+- Initiative e epic só vão para `planned` se houver hipótese validada, em execução ou entregue vinculada.
+- Experimento só vai para `running` com `success_criteria` preenchido.

@@ -1,0 +1,295 @@
+@import "tailwindcss";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ───────────────── Design tokens ───────────────── */
+:root {
+  /* Surfaces */
+  --bg: #ffffff;
+  --bg-subtle: #f7f8fa;
+  --bg-muted: #f9fafb;
+  --bg-muted-2: #f1f5f9;
+  --bg-elevated: #ffffff;
+
+  /* Borders */
+  --border: #e5e7eb;
+  --border-strong: #cbd5e1;
+  --border-soft: #f1f5f9;
+
+  /* Text */
+  --fg: #2b364a;
+  --fg-muted: #4b5563;
+  --fg-subtle: #6b7280;
+  --fg-faint: #9ca3af;
+  --fg-disabled: #d1d5db;
+  --fg-on-primary: #ffffff;
+
+  /* Brand */
+  --primary: #13c8b5;
+  --primary-hover: #0fb8a6;
+  --primary-soft: #e6f8f5;
+  --primary-soft-2: #f4fdfb;
+
+  /* Status */
+  --danger: #ef4444;
+  --danger-strong: #dc2626;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+  --danger-fg: #b91c1c;
+
+  --success: #16a34a;
+  --success-soft: #f0fdf4;
+  --success-border: #86efac;
+
+  --warn: #f59e0b;
+  --warn-strong: #ea580c;
+  --warn-soft: #fff7ed;
+  --warn-border: #fed7aa;
+  --warn-fg: #c2410c;
+
+  --info: #3b82f6;
+  --info-soft: #eff6ff;
+
+  --purple: #7c3aed;
+  --cyan: #0891b2;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px -8px rgba(15, 23, 42, 0.12);
+
+  /* Drag visuals (board) */
+  --drag-glow: rgba(19, 200, 181, 0.35);
+  --drag-ring: rgba(19, 200, 181, 0.5);
+}
+
+.dark {
+  --bg: #181a1c;
+  --bg-subtle: #1d1f22;
+  --bg-muted: #202225;
+  --bg-muted-2: #26282c;
+  --bg-elevated: #1f2125;
+
+  --border: #2c2f33;
+  --border-strong: #3a3e44;
+  --border-soft: #232629;
+
+  --fg: #e6edf7;
+  --fg-muted: #b7c2d6;
+  --fg-subtle: #93a0bb;
+  --fg-faint: #6b7997;
+  --fg-disabled: #4a5772;
+  --fg-on-primary: #04221e;
+
+  --primary: #2cdcc8;
+  --primary-hover: #46e6d3;
+  --primary-soft: #0c2a26;
+  --primary-soft-2: #0a221f;
+
+  --danger: #f87171;
+  --danger-strong: #fca5a5;
+  --danger-soft: #2a1416;
+  --danger-border: #5b1d22;
+  --danger-fg: #fca5a5;
+
+  --success: #4ade80;
+  --success-soft: #0e2a18;
+  --success-border: #1b4d2e;
+
+  --warn: #fbbf24;
+  --warn-strong: #fb923c;
+  --warn-soft: #2a1c0a;
+  --warn-border: #5a3a13;
+  --warn-fg: #fcd34d;
+
+  --info: #60a5fa;
+  --info-soft: #102241;
+
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+
+  --drag-glow: rgba(44, 220, 200, 0.4);
+  --drag-ring: rgba(44, 220, 200, 0.55);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Geist Sans", system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+code,
+kbd,
+pre {
+  font-family: "Geist Mono", ui-monospace, monospace;
+}
+
+/* Smooth color transitions on theme toggle */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease;
+}
+
+/* Disable transitions during resize / reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ───────── Animations ───────── */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.22s ease-out;
+}
+.animate-scale-in {
+  animation: scale-in 0.18s ease-out;
+}
+
+/* Skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-muted) 0%,
+    var(--bg-muted-2) 50%,
+    var(--bg-muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Focus ring (accessible) */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* SortableJS — drag & drop visuals for Dores board */
+.pain-ghost > div {
+  opacity: 0.35;
+  background: var(--primary-soft-2) !important;
+  border: 2px dashed var(--primary) !important;
+  filter: grayscale(0.2);
+}
+.pain-chosen {
+  cursor: grabbing !important;
+}
+.pain-drag > div {
+  transform: rotate(3deg) scale(1.04);
+  box-shadow:
+    0 24px 40px -14px var(--drag-glow),
+    0 0 0 2px var(--drag-ring) !important;
+  border-color: var(--primary) !important;
+  cursor: grabbing !important;
+}
+
+/* Lightsaber route loader */
+.lightsaber-loader {
+  position: relative;
+  width: 80px;
+  height: 40px;
+}
+.lightsaber-loader .lightsaber {
+  position: absolute;
+  width: 4px;
+  height: 12px;
+  background-color: #666;
+  border-radius: 1px;
+  bottom: 0;
+}
+.lightsaber-loader .lightsaber.ls-left {
+  left: 0;
+}
+.lightsaber-loader .lightsaber.ls-right {
+  right: 0;
+}
+.lightsaber-loader .lightsaber:before {
+  position: absolute;
+  content: " ";
+  display: block;
+  width: 2px;
+  height: 25px;
+  max-height: 1px;
+  left: 1px;
+  top: 1px;
+  background-color: #fff;
+  border-radius: 1px;
+  transform: rotateZ(180deg);
+  transform-origin: center top;
+}
+.lightsaber-loader .lightsaber:after {
+  position: absolute;
+  content: " ";
+  display: block;
+  width: 2px;
+  height: 2px;
+  left: 1px;
+}
+
+/* Hover lift utility */
+.hover-lift {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Subtle row hover */
+.row-hover:hover {
+  background-color: var(--bg-muted);
+}

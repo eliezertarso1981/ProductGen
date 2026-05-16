@@ -1,0 +1,38 @@
+---
+title: Banco de dados
+---
+
+# Banco de dados
+
+O banco local é Postgres 16 em Docker.
+
+## Comandos
+
+```bash
+cd DB
+docker compose up -d
+```
+
+Conexão local:
+
+```text
+postgresql://postgres:postgres@localhost:5432/productgen
+```
+
+## Schema
+
+O script de schema fica em:
+
+```text
+docs/reference/database/productgen_schema.sql
+```
+
+Esse arquivo é fonte da verdade para estrutura de banco, triggers, enums, RLS e lifecycle.
+
+## RLS
+
+As tabelas de domínio têm `workspace_id` e políticas de Row-Level Security. A aplicação precisa informar o workspace no início da transação.
+
+## Audit log
+
+A tabela `entity_events` registra inserts e updates relevantes, incluindo mudanças de status. Ela é particionada por mês e deve ser tratada como histórico imutável.

@@ -1,0 +1,27 @@
+---
+title: Testes
+---
+
+# Testes
+
+Os testes ficam em `api/tests` e usam Vitest + Testcontainers.
+
+## Rodar
+
+```bash
+cd api
+npm test
+```
+
+## O que a suíte cobre
+
+- Login e autenticação.
+- CRUD de pains.
+- CRUD de hypotheses.
+- CRUD de roadmap items.
+- Regras de lifecycle protegidas pelo banco.
+- Isolamento multi-tenant via RLS.
+
+## Detalhe importante
+
+Nos testes, a aplicação usa um usuário comum do Postgres (`productgen_app`) para exercitar RLS de verdade. O superuser fica restrito à criação de fixtures.

@@ -1,0 +1,75 @@
+---
+title: Desenvolvimento
+---
+
+# Backend
+
+O backend fica em `api/`.
+
+## Rodar localmente
+
+```bash
+cd api
+npm install
+npm run dev
+```
+
+Por padrão a API sobe em:
+
+```text
+http://localhost:3000
+```
+
+Health check:
+
+```text
+GET /health
+```
+
+OpenAPI JSON da API:
+
+```text
+GET /openapi.json
+```
+
+## Módulos implementados
+
+- `auth`: login local de desenvolvimento e JWT.
+- `products`: CRUD de produtos por workspace.
+- `workspace-members`: CRUD de membros do workspace.
+- `evidences`: CRUD e transição de status de evidências.
+- `insights`: CRUD de insights e vínculo com evidências.
+- `pains`: CRUD, transição de status, merge/split e scoring (RICE/ICE).
+- `hypotheses`: CRUD, transição de status, clone e scoring (RICE/ICE).
+- `experiments`: CRUD e transição de status/resultado de experimentos.
+- `links`: vínculos dor↔hipótese e hipótese↔roadmap.
+- `roadmap`: CRUD, transição de status e scoring (RICE/ICE).
+- `strategic-pillars`: CRUD de pilares estratégicos por produto.
+- `objectives`: CRUD de objetivos (OKR) e transição de status.
+- `key-results`: CRUD de key results por objetivo.
+- `outcomes`: CRUD de outcomes por item de roadmap e transição de status.
+- `prds`: PRDs versionados por item de roadmap.
+- `releases`: CRUD de releases por produto.
+- `engineering-handoffs`: handoff de roadmap para Jira/ADO.
+- `platform`: comentários, atribuições, decision logs, leitura de eventos e assets polimórficos.
+- `analytics`: endpoints sobre views consolidadas.
+
+## Exportar e validar OpenAPI
+
+```bash
+cd api
+npm run openapi:export
+```
+
+O arquivo gerado vai para:
+
+```text
+docs/static/openapi/productgen.json
+```
+
+Antes de abrir PR, confira se o contrato está sincronizado:
+
+```bash
+cd api
+npm run openapi:check
+```

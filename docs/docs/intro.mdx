@@ -1,0 +1,36 @@
+---
+sidebar_position: 1
+title: Visão geral
+---
+
+# ProductGen
+
+ProductGen é uma plataforma SaaS B2B para times de produto conectarem estratégia, discovery, delivery e outcomes de forma rastreável.
+
+O diferencial do projeto é tratar o fluxo de produto como um sistema disciplinado: evidências viram dores, dores sustentam hipóteses, hipóteses precisam de validação, itens de roadmap se conectam a hipóteses e outcomes fecham o ciclo.
+
+## Estado atual
+
+- Banco Postgres local modelado com RLS, audit log e lifecycle por triggers.
+- Backend Fastify em TypeScript com SQL puro via `pg`.
+- Testes com Vitest e Testcontainers.
+- Documentação centralizada neste Docusaurus.
+- Referência interativa da API em Scalar.
+
+## Onde ficam as peças
+
+```text
+ProductGen/
+├── api/                 # backend Fastify
+├── DB/                  # docker-compose do Postgres local
+├── docs/                # Docusaurus + Scalar + documentação do projeto
+└── CLAUDE.md            # contexto operacional do projeto
+```
+
+## Links rápidos
+
+- [Arquitetura](./architecture/overview)
+- [Banco de dados](./architecture/database)
+- [Backend](./backend/development)
+- [Testes](./backend/testing)
+- [API Reference](/api)
