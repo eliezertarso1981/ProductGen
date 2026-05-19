@@ -13,7 +13,7 @@ const outputPath = resolve(
 );
 
 async function main() {
-  ensureJwtKeysForDocsExport();
+  ensureEnvForDocsExport();
   const { buildApp } = await import('../app');
   const app = buildApp() as AppWithSwagger;
 
@@ -27,6 +27,18 @@ async function main() {
     console.log(`OpenAPI exportado para ${outputPath}`);
   } finally {
     await app.close();
+  }
+}
+
+function ensureEnvForDocsExport() {
+  ensureJwtKeysForDocsExport();
+
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'postgresql://openapi:openapi@127.0.0.1:5432/productgen_openapi';
+  }
+
+  if (!process.env.COOKIE_SECRET) {
+    process.env.COOKIE_SECRET = 'openapi-docs-check-cookie-secret-min-32-chars';
   }
 }
 
