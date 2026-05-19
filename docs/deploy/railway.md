@@ -27,6 +27,15 @@ O repositório tem **api/** e **web/**. Cada serviço na Railway precisa de um *
 
 - `NEXT_PUBLIC_PRODUCTGEN_API_URL` = URL pública da API (**no build**)
 
+## Web — build falha em `strategy-store.tsx` / snapshot antigo
+
+Se o log ainda mostra `status: patch.status` na linha ~588, a Railway **não está usando o `main` atual** (o snapshot `sha256:9f74eaca...` é de um commit antigo).
+
+1. **Settings → Source**: repositório correto, branch **`main`**
+2. **Deployments** → **Deploy** no commit mais recente (não “Redeploy” de um deploy antigo)
+3. Marque **Clear build cache**
+4. **Root Directory** = `web`
+
 ## Banco (uma vez)
 
 Use `DATABASE_PUBLIC_URL` do Postgres (rede pública) no seu terminal local:

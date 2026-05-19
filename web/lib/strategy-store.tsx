@@ -566,17 +566,15 @@ export function StrategyProvider({ children }: { children: React.ReactNode }) {
         const objectivePayload = toApiObjectivePayload(patch);
         try {
           if (Object.keys(objectivePayload).length > 0) {
+            const statusOverride = patch.status;
             const remoteObjective = await updateObjectiveInApi(id, objectivePayload);
             setState((s) => ({
               ...s,
-              okrs: s.okrs.map((okr) =>
-                okr.id === id
-                  ? {
-                      ...mergeLocalOKR(okr, remoteObjective),
-                      ...(patch.status ? { status: patch.status } : {}),
-                    }
-                  : okr,
-              ),
+              okrs: s.okrs.map((okr) => {
+                if (okr.id !== id) return okr;
+                const updated = mergeLocalOKR(okr, remoteObjective);
+                return statusOverride !== undefined ? { ...updated, status: statusOverride } : updated;
+              }),
             }));
           }
 
