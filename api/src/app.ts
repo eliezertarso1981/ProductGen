@@ -29,6 +29,7 @@ import { platformRoutes } from './modules/platform/platform.routes';
 import { registerSwagger } from './docs/swagger';
 import { healthRouteSchemas } from './docs/route-docs';
 import { registerOpenApiSchemas } from './docs/openapi-schemas';
+import { captureException } from './sentry';
 
 export function buildApp() {
   const app = Fastify({
@@ -64,6 +65,7 @@ export function buildApp() {
       });
     }
     app.log.error(err);
+    captureException(err);
     return reply.status(500).send({
       error: { code: 'INTERNAL_ERROR', message: 'Erro interno do servidor' },
     });

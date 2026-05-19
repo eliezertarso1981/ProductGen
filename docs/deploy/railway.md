@@ -86,3 +86,20 @@ Headers corretos:
 - Pública: `-----BEGIN PUBLIC KEY-----` (SPKI)
 
 Erro `DATABASE_URL: Required` → adicione `DATABASE_URL=${{NomeDoServicoPostgres.DATABASE_URL}}`.
+
+## Sentry (monitoramento de erros — plano free)
+
+1. Crie conta em [sentry.io](https://sentry.io) → projeto **ProductGen** (ou dois: API + Web).
+2. Copie o **DSN** (Client Keys).
+
+| Serviço | Variável | Valor |
+|---------|----------|--------|
+| API | `SENTRY_DSN` | DSN do projeto |
+| API | `SENTRY_ENVIRONMENT` | `production` (opcional) |
+| Web | `NEXT_PUBLIC_SENTRY_DSN` | mesmo DSN (ou projeto só do front) |
+| Web | `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | `production` (opcional) |
+
+3. **Redeploy** API e Web após salvar (no Web o DSN entra no **build**).
+4. Teste: force um erro ou veja Issues no painel Sentry após um 500.
+
+Sem DSN, o app funciona normalmente (Sentry desligado em dev local).

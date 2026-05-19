@@ -1,13 +1,18 @@
 import { buildApp } from './app';
 import { config } from './config/env';
 import { validateJwtKeys } from './auth/jwt';
+import { captureException, initSentry } from './sentry';
+
+initSentry();
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection:', reason);
+  captureException(reason);
 });
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
+  captureException(err);
   process.exit(1);
 });
 
@@ -21,6 +26,7 @@ const start = async () => {
       'JWT_PRIVATE_KEY / JWT_PUBLIC_KEY inválidas. Use PEM PKCS#8/SPKI; no Railway, quebre linhas com \\n:',
       err,
     );
+    captureException(err);
     process.exit(1);
   }
 
