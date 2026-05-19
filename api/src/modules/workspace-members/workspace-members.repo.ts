@@ -6,8 +6,12 @@ import type {
 type WorkspaceMemberRow = {
   workspace_id: string;
   user_id: string;
+  name: string;
+  email: string;
   role: string;
   joined_at: string;
+  last_accessed_at: string | null;
+  onboarded_at: string | null;
   removed_at: string | null;
   updated_at: string;
 };
@@ -19,10 +23,22 @@ export async function listWorkspaceMembers(
   const { rows } = await client.query<WorkspaceMemberRow>(
     `
     SELECT
-      workspace_id, user_id, role, joined_at, removed_at, updated_at
-    FROM workspace_members
-    WHERE workspace_id = $1 AND removed_at IS NULL
-    ORDER BY joined_at DESC
+      wm.workspace_id,
+      wm.user_id,
+      u.name,
+      u.email,
+      wm.role,
+      wm.joined_at,
+      wm.last_accessed_at,
+      wm.onboarded_at,
+      wm.removed_at,
+      wm.updated_at
+    FROM workspace_members wm
+    JOIN users u ON u.id = wm.user_id
+    WHERE wm.workspace_id = $1
+      AND wm.removed_at IS NULL
+      AND u.deleted_at IS NULL
+    ORDER BY wm.joined_at DESC
     `,
     [workspaceId],
   );
@@ -38,9 +54,22 @@ export async function getWorkspaceMember(
   const { rows } = await client.query<WorkspaceMemberRow>(
     `
     SELECT
-      workspace_id, user_id, role, joined_at, removed_at, updated_at
-    FROM workspace_members
-    WHERE workspace_id = $1 AND user_id = $2 AND removed_at IS NULL
+      wm.workspace_id,
+      wm.user_id,
+      u.name,
+      u.email,
+      wm.role,
+      wm.joined_at,
+      wm.last_accessed_at,
+      wm.onboarded_at,
+      wm.removed_at,
+      wm.updated_at
+    FROM workspace_members wm
+    JOIN users u ON u.id = wm.user_id
+    WHERE wm.workspace_id = $1
+      AND wm.user_id = $2
+      AND wm.removed_at IS NULL
+      AND u.deleted_at IS NULL
     `,
     [workspaceId, userId],
   );
@@ -67,7 +96,16 @@ export async function createWorkspaceMember(
       removed_at = NULL,
       updated_at = now()
     RETURNING
-      workspace_id, user_id, role, joined_at, removed_at, updated_at
+      workspace_id,
+      user_id,
+      (SELECT name FROM users WHERE id = workspace_members.user_id) AS name,
+      (SELECT email FROM users WHERE id = workspace_members.user_id) AS email,
+      role,
+      joined_at,
+      last_accessed_at,
+      onboarded_at,
+      removed_at,
+      updated_at
     `,
     [input.workspace_id, input.user_id, input.role],
   );
@@ -87,7 +125,16 @@ export async function updateWorkspaceMemberRole(
     SET role = $3
     WHERE workspace_id = $1 AND user_id = $2 AND removed_at IS NULL
     RETURNING
-      workspace_id, user_id, role, joined_at, removed_at, updated_at
+      workspace_id,
+      user_id,
+      (SELECT name FROM users WHERE id = workspace_members.user_id) AS name,
+      (SELECT email FROM users WHERE id = workspace_members.user_id) AS email,
+      role,
+      joined_at,
+      last_accessed_at,
+      onboarded_at,
+      removed_at,
+      updated_at
     `,
     [workspaceId, userId, input.role],
   );

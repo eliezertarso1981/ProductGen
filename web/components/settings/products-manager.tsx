@@ -19,8 +19,12 @@ import {
 } from "lucide-react";
 import { useProducts, type Product } from "@/lib/products-context";
 import { useWorkspace } from "@/lib/workspace-store";
+import { usePermissions } from "@/lib/auth-context";
 import { useDores } from "@/lib/dores-store";
+import { getPainDisplayId } from "@/lib/dores-data";
 import { useDiscovery } from "@/lib/discovery-store";
+import { useStrategy } from "@/lib/strategy-store";
+import { formatPeriod, okrProgress } from "@/lib/strategy-data";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { toast } from "sonner";
@@ -36,8 +40,12 @@ export function ProductsManager() {
     archiveProduct,
     restoreProduct,
     deleteProduct,
+    isRemoteBacked,
+    syncError,
   } = useProducts();
+  const { can } = usePermissions();
   const workspace = useWorkspace();
+  const strategy = useStrategy();
   const { pains, updatePain } = useDores();
   const { hypotheses } = useDiscovery();
 
@@ -61,8 +69,8 @@ export function ProductsManager() {
   );
 
   const productPainCount = (id: string) => pains.filter((p) => p.productId === id).length;
-  const productPillarCount = (id: string) => workspace.pillarsByProduct(id).length;
-  const productOkrCount = (id: string) => workspace.okrsByProduct(id).length;
+  const productPillarCount = (id: string) => strategy.pillarsByProduct(id).length;
+  const productOkrCount = (id: string) => strategy.okrsByProduct(id).length;
   const productMemberCount = (id: string) => workspace.membersByProduct(id).length;
   const productHypothesesCount = (id: string) => hypotheses.filter((h) => h.productId === id).length;
 
@@ -77,13 +85,19 @@ export function ProductsManager() {
         style={{ borderColor: "var(--border)", backgroundColor: "var(--bg)" }}
       >
         <div className="flex items-center justify-between gap-2 px-4 pt-4">
-          <h3 className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
-            Produtos do workspace
-          </h3>
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
+              Produtos do workspace
+            </h3>
+            <p className="mt-0.5 text-[10px]" style={{ color: syncError ? "var(--danger-strong)" : "var(--fg-faint)" }}>
+              {syncError ? syncError : isRemoteBacked ? "Sincronizado com a API" : "Dados locais de demonstração"}
+            </p>
+          </div>
           <button
             onClick={() => setCreating(true)}
+            disabled={!can("product.create")}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold"
-            style={{ backgroundColor: "var(--primary)", color: "white" }}
+            style={{ backgroundColor: "var(--primary)", color: "white", opacity: can("product.create") ? 1 : 0.5 }}
           >
             <Plus size={12} /> Novo
           </button>
@@ -202,7 +216,12 @@ export function ProductsManager() {
           <>
             <ProductHeader
               product={selected}
-              onUpdate={(patch) => updateProduct(selected.id, patch)}
+              canUpdate={can("product.update", { productId: selected.id })}
+              canArchive={can("product.archive", { productId: selected.id })}
+              canDelete={can("product.archive", { productId: selected.id })}
+              onUpdate={(patch) => {
+                if (can("product.update", { productId: selected.id })) updateProduct(selected.id, patch);
+              }}
               onArchive={() => setConfirmArchive(selected)}
               onRestore={() => {
                 restoreProduct(selected.id);
@@ -339,12 +358,18 @@ function ProductHeader({
   onArchive,
   onRestore,
   onDelete,
+  canUpdate,
+  canArchive,
+  canDelete,
 }: {
   product: Product;
   onUpdate: (patch: Partial<Product>) => void;
   onArchive: () => void;
   onRestore: () => void;
   onDelete: () => void;
+  canUpdate: boolean;
+  canArchive: boolean;
+  canDelete: boolean;
 }) {
   return (
     <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
@@ -359,6 +384,7 @@ function ProductHeader({
           <input
             value={product.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
+            readOnly={!canUpdate}
             className="w-full bg-transparent text-xl font-semibold tracking-tight outline-none"
             style={{ color: "var(--fg)" }}
           />
@@ -375,24 +401,27 @@ function ProductHeader({
         {product.status === "active" ? (
           <button
             onClick={onArchive}
+            disabled={!canArchive}
             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-            style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
+            style={{ borderColor: "var(--border)", color: "var(--fg-muted)", opacity: canArchive ? 1 : 0.5 }}
           >
             <Archive size={13} /> Arquivar
           </button>
         ) : (
           <button
             onClick={onRestore}
+            disabled={!canArchive}
             className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-            style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
+            style={{ borderColor: "var(--border)", color: "var(--fg-muted)", opacity: canArchive ? 1 : 0.5 }}
           >
             <ArchiveRestore size={13} /> Restaurar
           </button>
         )}
         <button
           onClick={onDelete}
+          disabled={!canDelete}
           className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-          style={{ borderColor: "var(--danger-border)", color: "var(--danger-strong)" }}
+          style={{ borderColor: "var(--danger-border)", color: "var(--danger-strong)", opacity: canDelete ? 1 : 0.5 }}
         >
           <Trash2 size={13} /> Excluir
         </button>
@@ -403,8 +432,11 @@ function ProductHeader({
 
 function OverviewTab({ product, hypothesesCount }: { product: Product; hypothesesCount: number }) {
   const { updateProduct } = useProducts();
-  const { pillarsByProduct, okrsByProduct, membersByProduct, teamsByProduct, members } = useWorkspace();
+  const { membersByProduct, teamsByProduct, members } = useWorkspace();
+  const { pillarsByProduct, okrsByProduct } = useStrategy();
   const { pains } = useDores();
+  const { can } = usePermissions();
+  const canUpdate = can("product.update", { productId: product.id });
 
   const owner = members.find((m) => m.id === product.ownerId);
 
@@ -425,7 +457,8 @@ function OverviewTab({ product, hypothesesCount }: { product: Product; hypothese
         </label>
         <textarea
           value={product.description ?? ""}
-          onChange={(e) => updateProduct(product.id, { description: e.target.value })}
+          onChange={(e) => canUpdate && updateProduct(product.id, { description: e.target.value })}
+          readOnly={!canUpdate}
           rows={3}
           placeholder="Descreva o propósito deste produto…"
           className="mt-2 w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--primary)]"
@@ -439,7 +472,8 @@ function OverviewTab({ product, hypothesesCount }: { product: Product; hypothese
         </label>
         <select
           value={product.ownerId ?? ""}
-          onChange={(e) => updateProduct(product.id, { ownerId: e.target.value || undefined })}
+          onChange={(e) => canUpdate && updateProduct(product.id, { ownerId: e.target.value || undefined })}
+          disabled={!canUpdate}
           className="mt-2 w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
           style={{ borderColor: "var(--border)", color: "var(--fg)" }}
         >
@@ -492,8 +526,7 @@ function OverviewTab({ product, hypothesesCount }: { product: Product; hypothese
 }
 
 function PillarsTab({ product }: { product: Product }) {
-  const { pillarsByProduct, addPillar, updatePillar, removePillar, movePillar } = useWorkspace();
-  const { activeProducts } = useProducts();
+  const { pillarsByProduct, createPillar, updatePillar, deletePillar } = useStrategy();
   const items = pillarsByProduct(product.id);
 
   return (
@@ -503,7 +536,13 @@ function PillarsTab({ product }: { product: Product }) {
           Pilares estratégicos que orientam OKRs e dores deste produto.
         </p>
         <button
-          onClick={() => addPillar(product.id, "Novo pilar")}
+          onClick={() => {
+            void createPillar(product.id)
+              .then(() => toast.success("Pilar criado"))
+              .catch((error) => {
+                toast.error(error instanceof Error ? error.message : "Não foi possível criar o pilar");
+              });
+          }}
           className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
           style={{ backgroundColor: "var(--primary-soft)", color: "var(--primary)" }}
         >
@@ -524,25 +563,31 @@ function PillarsTab({ product }: { product: Product }) {
               <div className="flex-1">
                 <input
                   value={p.name}
-                  onChange={(e) => updatePillar(p.id, { name: e.target.value })}
+                  onChange={(e) => {
+                    void updatePillar(p.id, { name: e.target.value }).catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o pilar");
+                    });
+                  }}
                   className="w-full bg-transparent text-sm font-semibold outline-none"
                   style={{ color: "var(--fg)" }}
                 />
                 <input
-                  value={p.description ?? ""}
-                  onChange={(e) => updatePillar(p.id, { description: e.target.value })}
+                  value={p.description}
+                  onChange={(e) => {
+                    void updatePillar(p.id, { description: e.target.value }).catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o pilar");
+                    });
+                  }}
                   placeholder="Descrição curta…"
                   className="mt-0.5 w-full bg-transparent text-xs outline-none"
                   style={{ color: "var(--fg-subtle)" }}
                 />
               </div>
-              <MoveMenu
-                currentProductId={product.id}
-                products={activeProducts}
-                onMove={(target) => movePillar(p.id, target)}
-              />
               <button
-                onClick={() => removePillar(p.id)}
+                onClick={() => {
+                  deletePillar(p.id);
+                  toast.success("Pilar removido");
+                }}
                 style={{ color: "var(--fg-faint)" }}
                 title="Excluir pilar"
               >
@@ -557,10 +602,54 @@ function PillarsTab({ product }: { product: Product }) {
 }
 
 function OkrsTab({ product }: { product: Product }) {
-  const { okrsByProduct, pillarsByProduct, addOkr, updateOkr, removeOkr, moveOkr, addKR, updateKR, removeKR, members } = useWorkspace();
-  const { activeProducts } = useProducts();
+  const { okrsByProduct, pillarsByProduct, createOKR, updateOKR, deleteOKR } = useStrategy();
   const items = okrsByProduct(product.id);
   const pillars = pillarsByProduct(product.id);
+
+  const updateKeyResult = (
+    okrId: string,
+    keyResultId: string,
+    patch: Partial<(typeof items)[number]["keyResults"][number]>,
+  ) => {
+    const okr = items.find((item) => item.id === okrId);
+    if (!okr) return;
+    void updateOKR(okrId, {
+      keyResults: okr.keyResults.map((kr) => (kr.id === keyResultId ? { ...kr, ...patch } : kr)),
+    }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o KR");
+    });
+  };
+
+  const addKeyResult = (okrId: string) => {
+    const okr = items.find((item) => item.id === okrId);
+    if (!okr) return;
+    void updateOKR(okrId, {
+      keyResults: [
+        ...okr.keyResults,
+        {
+          id: `kr-${Date.now()}`,
+          title: "Novo Key Result",
+          metric: "",
+          baseline: 0,
+          target: 100,
+          current: 0,
+          unit: "%",
+        },
+      ],
+    }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "Não foi possível adicionar o KR");
+    });
+  };
+
+  const removeKeyResult = (okrId: string, keyResultId: string) => {
+    const okr = items.find((item) => item.id === okrId);
+    if (!okr) return;
+    void updateOKR(okrId, {
+      keyResults: okr.keyResults.filter((kr) => kr.id !== keyResultId),
+    }).catch((error) => {
+      toast.error(error instanceof Error ? error.message : "Não foi possível remover o KR");
+    });
+  };
 
   return (
     <div>
@@ -569,7 +658,13 @@ function OkrsTab({ product }: { product: Product }) {
           Objetivos e Key Results deste produto.
         </p>
         <button
-          onClick={() => addOkr(product.id)}
+          onClick={() => {
+            void createOKR(product.id)
+              .then(() => toast.success("OKR criado"))
+              .catch((error) => {
+                toast.error(error instanceof Error ? error.message : "Não foi possível criar o OKR");
+              });
+          }}
           className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
           style={{ backgroundColor: "var(--primary-soft)", color: "var(--primary)" }}
         >
@@ -582,14 +677,7 @@ function OkrsTab({ product }: { product: Product }) {
       ) : (
         <div className="space-y-3">
           {items.map((o) => {
-            const progress =
-              o.keyResults.length === 0
-                ? 0
-                : Math.round(
-                    (o.keyResults.reduce((acc, k) => acc + Math.min(1, k.target ? k.current / k.target : 0), 0) /
-                      o.keyResults.length) *
-                      100,
-                  );
+            const progress = okrProgress(o);
             return (
               <div
                 key={o.id}
@@ -600,14 +688,22 @@ function OkrsTab({ product }: { product: Product }) {
                   <div className="flex-1">
                     <input
                       value={o.objective}
-                      onChange={(e) => updateOkr(o.id, { objective: e.target.value })}
+                      onChange={(e) => {
+                        void updateOKR(o.id, { objective: e.target.value }).catch((error) => {
+                          toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o OKR");
+                        });
+                      }}
                       className="w-full bg-transparent text-sm font-semibold outline-none"
                       style={{ color: "var(--fg)" }}
                     />
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                       <select
                         value={o.pillarId ?? ""}
-                        onChange={(e) => updateOkr(o.id, { pillarId: e.target.value || undefined })}
+                        onChange={(e) => {
+                          void updateOKR(o.id, { pillarId: e.target.value || undefined }).catch((error) => {
+                            toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o OKR");
+                          });
+                        }}
                         className="rounded-md border bg-transparent px-2 py-1 text-xs outline-none"
                         style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
                       >
@@ -618,25 +714,12 @@ function OkrsTab({ product }: { product: Product }) {
                           </option>
                         ))}
                       </select>
-                      <input
-                        value={o.quarter}
-                        onChange={(e) => updateOkr(o.id, { quarter: e.target.value })}
-                        className="w-20 rounded-md border bg-transparent px-2 py-1 text-xs outline-none"
-                        style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
-                      />
-                      <select
-                        value={o.ownerId ?? ""}
-                        onChange={(e) => updateOkr(o.id, { ownerId: e.target.value || undefined })}
-                        className="rounded-md border bg-transparent px-2 py-1 text-xs outline-none"
+                      <span
+                        className="rounded-md border px-2 py-1"
                         style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
                       >
-                        <option value="">— Owner —</option>
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
+                        {formatPeriod(o.period)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
@@ -644,8 +727,13 @@ function OkrsTab({ product }: { product: Product }) {
                       <div className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
                         {progress}%
                       </div>
-                      <MoveMenu currentProductId={product.id} products={activeProducts} onMove={(t) => moveOkr(o.id, t)} />
-                      <button onClick={() => removeOkr(o.id)} style={{ color: "var(--fg-faint)" }}>
+                      <button
+                        onClick={() => {
+                          deleteOKR(o.id);
+                          toast.success("OKR removido");
+                        }}
+                        style={{ color: "var(--fg-faint)" }}
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -662,15 +750,15 @@ function OkrsTab({ product }: { product: Product }) {
                   {o.keyResults.map((k) => (
                     <div key={k.id} className="flex items-center gap-2">
                       <input
-                        value={k.text}
-                        onChange={(e) => updateKR(o.id, k.id, { text: e.target.value })}
+                        value={k.title}
+                        onChange={(e) => updateKeyResult(o.id, k.id, { title: e.target.value })}
                         className="flex-1 bg-transparent text-xs outline-none"
                         style={{ color: "var(--fg)" }}
                       />
                       <input
                         type="number"
                         value={k.current}
-                        onChange={(e) => updateKR(o.id, k.id, { current: Number(e.target.value) })}
+                        onChange={(e) => updateKeyResult(o.id, k.id, { current: Number(e.target.value) })}
                         className="w-16 rounded-md border bg-transparent px-1.5 py-0.5 text-xs outline-none"
                         style={{ borderColor: "var(--border)", color: "var(--fg)" }}
                       />
@@ -678,24 +766,24 @@ function OkrsTab({ product }: { product: Product }) {
                       <input
                         type="number"
                         value={k.target}
-                        onChange={(e) => updateKR(o.id, k.id, { target: Number(e.target.value) })}
+                        onChange={(e) => updateKeyResult(o.id, k.id, { target: Number(e.target.value) })}
                         className="w-16 rounded-md border bg-transparent px-1.5 py-0.5 text-xs outline-none"
                         style={{ borderColor: "var(--border)", color: "var(--fg)" }}
                       />
                       <input
                         value={k.unit ?? ""}
-                        onChange={(e) => updateKR(o.id, k.id, { unit: e.target.value })}
+                        onChange={(e) => updateKeyResult(o.id, k.id, { unit: e.target.value })}
                         placeholder="un"
                         className="w-12 rounded-md border bg-transparent px-1.5 py-0.5 text-xs outline-none"
                         style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
                       />
-                      <button onClick={() => removeKR(o.id, k.id)} style={{ color: "var(--fg-faint)" }}>
+                      <button onClick={() => removeKeyResult(o.id, k.id)} style={{ color: "var(--fg-faint)" }}>
                         <X size={12} />
                       </button>
                     </div>
                   ))}
                   <button
-                    onClick={() => addKR(o.id)}
+                    onClick={() => addKeyResult(o.id)}
                     className="inline-flex items-center gap-1 text-[11px] font-semibold"
                     style={{ color: "var(--primary)" }}
                   >
@@ -711,7 +799,7 @@ function OkrsTab({ product }: { product: Product }) {
   );
 }
 
-function DoresTab({ product, pains, onMove }: { product: Product; pains: Array<{ id: string; title: string; status: string; severity: number }>; onMove: (id: string, target: string) => void }) {
+function DoresTab({ product, pains, onMove }: { product: Product; pains: Array<{ id: string; code?: string; title: string; status: string; severity: number }>; onMove: (id: string, target: string) => void }) {
   const { activeProducts } = useProducts();
 
   if (pains.length === 0) {
@@ -730,9 +818,11 @@ function DoresTab({ product, pains, onMove }: { product: Product; pains: Array<{
             className="flex items-center gap-3 rounded-lg border p-3"
             style={{ borderColor: "var(--border)", backgroundColor: "var(--bg)" }}
           >
-            <span className="font-mono text-[10px]" style={{ color: "var(--fg-faint)" }}>
-              {p.id}
-            </span>
+            {getPainDisplayId(p) && (
+              <span className="font-mono text-[10px]" style={{ color: "var(--fg-faint)" }}>
+                {getPainDisplayId(p)}
+              </span>
+            )}
             <div className="flex-1 text-sm" style={{ color: "var(--fg)" }}>
               {p.title}
             </div>

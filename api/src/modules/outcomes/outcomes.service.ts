@@ -43,6 +43,7 @@ export async function createOutcome(
         ...input,
         workspace_id: workspaceId,
         roadmap_item_id: roadmapItemId,
+        product_id: item.product_id,
       });
     });
   } catch (err) {

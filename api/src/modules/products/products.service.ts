@@ -24,9 +24,17 @@ export async function createProduct(
   input: CreateProductInput,
 ) {
   try {
-    return await withWorkspaceTx(pool, workspaceId, actorId, (client) =>
-      repo.createProduct(client, { workspace_id: workspaceId, ...input }),
-    );
+    return await withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+      const product = await repo.createProduct(client, { workspace_id: workspaceId, ...input });
+      await client.query(
+        `INSERT INTO product_members (product_id, workspace_id, user_id, role, added_by_user_id)
+         VALUES ($1, $2, $3, 'owner', $3)
+         ON CONFLICT (product_id, user_id) DO UPDATE
+         SET role = 'owner'`,
+        [product.id, workspaceId, actorId],
+      );
+      return product;
+    });
   } catch (err) {
     mapDbError(err);
   }

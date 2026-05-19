@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import { buildApp } from '../src/app';
 import { createFixtures, loginAs, authHeader } from './helpers';
+import { hashPassword } from '../src/auth/password';
 
 let app: ReturnType<typeof buildApp>;
 let adminPool: Pool;
@@ -46,6 +47,34 @@ describe('CRUD de products', () => {
     expect(body.id).toBeDefined();
     expect(body.workspace_id).toBe(workspaceId);
     expect(body.name).toBe('Product A');
+  });
+
+  it('POST /workspaces/:workspace_id/products retorna 403 para viewer', async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const email = `viewer-${suffix}@example.com`;
+    await adminPool.query(
+      `INSERT INTO users (email, name, password_hash)
+       VALUES ($1, 'Viewer User', $2)`,
+      [email, await hashPassword('productgen123')],
+    );
+    await adminPool.query(
+      `INSERT INTO workspace_members (workspace_id, user_id, role)
+       SELECT $1, id, 'viewer'
+       FROM users
+       WHERE email = $2`,
+      [workspaceId, email],
+    );
+
+    const viewerToken = await loginAs(app, email, 'unused');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/workspaces/${workspaceId}/products`,
+      headers: authHeader(viewerToken),
+      payload: { name: 'Viewer Product' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).error.code).toBe('PERMISSION_DENIED');
   });
 
   it('GET /workspaces/:workspace_id/products lista products do workspace', async () => {

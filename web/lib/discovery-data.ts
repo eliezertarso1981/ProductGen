@@ -4,6 +4,7 @@ export type HypothesisStatus = "rascunho" | "em_teste" | "validada" | "invalidad
 export type ExperimentStatus = "planejado" | "em_andamento" | "concluido" | "cancelado";
 export type ExperimentResult = "valida" | "invalida" | "inconclusivo" | null;
 export type RoadmapStatus = "now" | "next" | "later" | "concluido";
+export type OutcomeStatus = "hipotetizado" | "medindo" | "confirmado" | "nao_confirmado" | "inconclusivo";
 export type EvidenceType = "entrevista" | "metrica" | "suporte" | "nps" | "outro";
 
 export interface HypothesisPrototype {
@@ -26,6 +27,8 @@ export interface Hypothesis {
   id: string;
   productId: string;
   painId?: string;
+  code?: string;
+  apiStatus?: string;
   title: string;
   statement: string;
   status: HypothesisStatus;
@@ -40,6 +43,9 @@ export interface Experiment {
   id: string;
   productId: string;
   hypothesisId?: string;
+  code?: string;
+  apiStatus?: string;
+  apiResult?: string | null;
   title: string;
   description: string;
   method: string;
@@ -63,6 +69,8 @@ export interface Evidence {
   id: string;
   productId: string;
   experimentId?: string;
+  code?: string;
+  apiStatus?: string;
   title: string;
   source: string;
   type: EvidenceType;
@@ -72,16 +80,50 @@ export interface Evidence {
   updatedAt: string;
 }
 
+export interface Insight {
+  id: string;
+  productId: string;
+  code?: string;
+  title: string;
+  description: string;
+  confidenceScore?: number | null;
+  impactScore?: number | null;
+  frequencyScore?: number | null;
+  evidenceIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RoadmapItem {
   id: string;
   productId: string;
   painId?: string;
   hypothesisId?: string;
+  code?: string;
+  apiStatus?: string;
   title: string;
   description: string;
   status: RoadmapStatus;
   owner: PainOwner;
   targetDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Outcome {
+  id: string;
+  productId: string;
+  roadmapItemId: string;
+  code?: string;
+  apiStatus?: string;
+  keyResultId?: string;
+  painId?: string;
+  hypothesizedImpact: string;
+  measurementWindowDays: number;
+  status: OutcomeStatus;
+  baselineValue?: number | null;
+  finalValue?: number | null;
+  conclusion?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,6 +159,14 @@ export const roadmapStatusConfig: Record<RoadmapStatus, { label: string; dot: st
   concluido: { label: "Concluído", dot: "var(--success)" },
 };
 
+export const outcomeStatusConfig: Record<OutcomeStatus, { label: string; dot: string }> = {
+  hipotetizado: { label: "Hipotetizado", dot: "var(--fg-faint)" },
+  medindo: { label: "Medindo", dot: "var(--info)" },
+  confirmado: { label: "Confirmado", dot: "var(--success)" },
+  nao_confirmado: { label: "Não confirmado", dot: "var(--danger)" },
+  inconclusivo: { label: "Inconclusivo", dot: "var(--warn-strong)" },
+};
+
 export const evidenceTypeConfig: Record<EvidenceType, { label: string; color: string }> = {
   entrevista: { label: "Entrevista", color: "var(--purple)" },
   metrica: { label: "Métrica", color: "var(--cyan)" },
@@ -138,4 +188,55 @@ export const experimentStatuses: ExperimentStatus[] = [
   "cancelado",
 ];
 export const roadmapStatuses: RoadmapStatus[] = ["now", "next", "later", "concluido"];
+export const outcomeStatuses: OutcomeStatus[] = [
+  "hipotetizado",
+  "medindo",
+  "confirmado",
+  "nao_confirmado",
+  "inconclusivo",
+];
 export const evidenceTypes: EvidenceType[] = ["entrevista", "metrica", "suporte", "nps", "outro"];
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function getExperimentDisplayId(experimentOrId: Pick<Experiment, "id" | "code"> | string): string | null {
+  if (typeof experimentOrId === "string") {
+    return UUID_PATTERN.test(experimentOrId) ? null : experimentOrId;
+  }
+  return experimentOrId.code ?? (UUID_PATTERN.test(experimentOrId.id) ? null : experimentOrId.id);
+}
+
+export function getHypothesisDisplayId(hypothesisOrId: Pick<Hypothesis, "id" | "code"> | string): string | null {
+  if (typeof hypothesisOrId === "string") {
+    return UUID_PATTERN.test(hypothesisOrId) ? null : hypothesisOrId;
+  }
+  return hypothesisOrId.code ?? (UUID_PATTERN.test(hypothesisOrId.id) ? null : hypothesisOrId.id);
+}
+
+export function getEvidenceDisplayId(evidenceOrId: Pick<Evidence, "id" | "code"> | string): string | null {
+  if (typeof evidenceOrId === "string") {
+    return UUID_PATTERN.test(evidenceOrId) ? null : evidenceOrId;
+  }
+  return evidenceOrId.code ?? (UUID_PATTERN.test(evidenceOrId.id) ? null : evidenceOrId.id);
+}
+
+export function getInsightDisplayId(insightOrId: Pick<Insight, "id" | "code"> | string): string | null {
+  if (typeof insightOrId === "string") {
+    return UUID_PATTERN.test(insightOrId) ? null : insightOrId;
+  }
+  return insightOrId.code ?? (UUID_PATTERN.test(insightOrId.id) ? null : insightOrId.id);
+}
+
+export function getRoadmapDisplayId(roadmapOrId: Pick<RoadmapItem, "id" | "code"> | string): string | null {
+  if (typeof roadmapOrId === "string") {
+    return UUID_PATTERN.test(roadmapOrId) ? null : roadmapOrId;
+  }
+  return roadmapOrId.code ?? (UUID_PATTERN.test(roadmapOrId.id) ? null : roadmapOrId.id);
+}
+
+export function getOutcomeDisplayId(outcomeOrId: Pick<Outcome, "id" | "code"> | string): string | null {
+  if (typeof outcomeOrId === "string") {
+    return UUID_PATTERN.test(outcomeOrId) ? null : outcomeOrId;
+  }
+  return outcomeOrId.code ?? (UUID_PATTERN.test(outcomeOrId.id) ? null : outcomeOrId.id);
+}

@@ -10,6 +10,10 @@ const productFilterSchema = z.object({
   product_id: z.string().uuid('product_id inválido').optional(),
 });
 
+const dashboardFilterSchema = productFilterSchema.extend({
+  period: z.enum(queries.DASHBOARD_PERIODS).optional(),
+});
+
 const uuidRequiredSchema = z.object({
   id: z.string().uuid('ID inválido'),
 });
@@ -25,6 +29,27 @@ const ENTITY_TYPES = [
 ] as const;
 
 export async function analyticsRoutes(app: FastifyInstance) {
+  // GET /analytics/dashboard?product_id=...
+  // Dashboard agregado: KPIs e sinais de saúde usando entidades reais
+  app.get(
+    '/analytics/dashboard',
+    { preHandler: requireAuth, schema: analyticsRouteSchemas.dashboard },
+    async (request, reply) => {
+      const parsed = dashboardFilterSchema.safeParse(request.query);
+      if (!parsed.success)
+        throw new AppError(400, 'VALIDATION_ERROR', parsed.error.issues[0].message);
+
+      const { workspace_id, user_id } = request.user;
+      const data = await queries.getDashboardAnalytics(
+        workspace_id,
+        user_id,
+        parsed.data.product_id,
+        parsed.data.period,
+      );
+      return reply.send(data);
+    },
+  );
+
   // GET /analytics/discovery-funnel?product_id=...
   // Funil: quantas evidencias viraram pains, pains viraram hipoteses, hipoteses viraram outcomes
   app.get(

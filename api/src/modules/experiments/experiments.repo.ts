@@ -8,7 +8,9 @@ import type {
 export interface Experiment {
   id: string;
   workspace_id: string;
+  product_id: string;
   hypothesis_id: string;
+  code: string;
   title: string;
   method: string;
   success_criteria: string;
@@ -27,6 +29,7 @@ export interface Experiment {
 
 interface CreateExperimentData {
   workspace_id: string;
+  product_id: string;
   hypothesis_id: string;
   title: string;
   method: string;
@@ -87,15 +90,18 @@ export async function createExperiment(
   client: PoolClient,
   data: CreateExperimentData,
 ): Promise<Experiment> {
+  const code = await nextExperimentCode(client, data.product_id);
   const result = await client.query<Experiment>(
     `INSERT INTO experiments (
-       workspace_id, hypothesis_id, title, method, success_criteria,
+       workspace_id, product_id, hypothesis_id, code, title, method, success_criteria,
        sample_target, owner_id
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       data.workspace_id,
+      data.product_id,
       data.hypothesis_id,
+      code,
       data.title,
       data.method,
       data.success_criteria,
@@ -104,6 +110,22 @@ export async function createExperiment(
     ],
   );
   return result.rows[0];
+}
+
+async function nextExperimentCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `experiments:${productId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM experiments
+     WHERE product_id = $1 AND code ~ '^EX-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `EX-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateExperiment(

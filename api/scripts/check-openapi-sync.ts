@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { buildApp } from '../src/app';
+import { generateKeyPairSync } from 'node:crypto';
 
-type AppWithSwagger = ReturnType<typeof buildApp> & {
+type BuildApp = typeof import('../src/app').buildApp;
+type AppWithSwagger = ReturnType<BuildApp> & {
   swagger: () => unknown;
   ready: () => Promise<void>;
   close: () => Promise<void>;
@@ -14,6 +15,8 @@ const staticPath = resolve(
 );
 
 async function main() {
+  ensureJwtKeysForDocsCheck();
+  const { buildApp } = await import('../src/app');
   const app = buildApp() as AppWithSwagger;
 
   try {
@@ -32,6 +35,14 @@ async function main() {
   } finally {
     await app.close();
   }
+}
+
+function ensureJwtKeysForDocsCheck() {
+  if (process.env.JWT_PRIVATE_KEY && process.env.JWT_PUBLIC_KEY) return;
+
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  process.env.JWT_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  process.env.JWT_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 }
 
 main().catch((err) => {

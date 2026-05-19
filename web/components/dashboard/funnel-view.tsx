@@ -1,8 +1,18 @@
 import { Fragment } from "react";
 import { ChevronRight, AlertTriangle } from "lucide-react";
-import { funnel, bottleneck } from "@/lib/mock-data";
+import type { ApiDashboardAnalytics } from "@/lib/productgen-api";
 
-export function FunnelView() {
+type FunnelStage = ApiDashboardAnalytics["discovery_funnel"][number];
+
+interface FunnelViewProps {
+  funnel: FunnelStage[];
+  bottleneck?: {
+    stage: string;
+    rate: number;
+  };
+}
+
+export function FunnelView({ funnel, bottleneck }: FunnelViewProps) {
   return (
     <div
       className="rounded-2xl border p-6"
@@ -14,7 +24,7 @@ export function FunnelView() {
             Funil de Discovery
           </h2>
           <p className="mt-0.5 text-sm" style={{ color: "var(--fg-subtle)" }}>
-            Conversão entre estágios — últimos 90 dias
+            Conversão entre estágios a partir das entidades reais
           </p>
         </div>
         <button
@@ -43,11 +53,11 @@ export function FunnelView() {
                 className="mt-2 text-xl font-semibold sm:text-2xl"
                 style={{ color: "var(--fg)" }}
               >
-                {stage.value}
+                {stage.count}
               </div>
-              {stage.rate && (
+              {stage.conversion_rate != null && (
                 <div className="mt-1 text-xs font-semibold" style={{ color: "var(--primary)" }}>
-                  {stage.rate}
+                  {stage.conversion_rate}%
                 </div>
               )}
             </div>
@@ -60,26 +70,28 @@ export function FunnelView() {
         ))}
       </div>
 
-      <div
-        className="mt-5 flex items-center justify-between rounded-xl p-4"
-        style={{ backgroundColor: "var(--warn-soft)", border: "1px solid var(--warn-border)" }}
-      >
-        <div className="flex items-center gap-3">
-          <AlertTriangle size={18} color="var(--warn)" />
-          <div className="text-sm" style={{ color: "var(--fg)" }}>
-            <span className="font-semibold" style={{ color: "var(--warn-fg)" }}>
-              Gargalo detectado
-            </span>{" "}
-            em &quot;{bottleneck.stage}&quot; ({bottleneck.rate} — esperado {bottleneck.expected})
-          </div>
-        </div>
-        <button
-          className="inline-flex items-center gap-1 text-sm font-semibold"
-          style={{ color: "var(--warn-fg)" }}
+      {bottleneck && (
+        <div
+          className="mt-5 flex items-center justify-between rounded-xl p-4"
+          style={{ backgroundColor: "var(--warn-soft)", border: "1px solid var(--warn-border)" }}
         >
-          Investigar <ChevronRight size={14} />
-        </button>
-      </div>
+          <div className="flex items-center gap-3">
+            <AlertTriangle size={18} color="var(--warn)" />
+            <div className="text-sm" style={{ color: "var(--fg)" }}>
+              <span className="font-semibold" style={{ color: "var(--warn-fg)" }}>
+                Gargalo detectado
+              </span>{" "}
+              em &quot;{bottleneck.stage}&quot; ({bottleneck.rate}%)
+            </div>
+          </div>
+          <button
+            className="inline-flex items-center gap-1 text-sm font-semibold"
+            style={{ color: "var(--warn-fg)" }}
+          >
+            Investigar <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

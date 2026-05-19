@@ -2,6 +2,25 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { owners } from "./dores-data";
+import { useAuth } from "./auth-context";
+import {
+  type ApiWorkspaceTeam,
+  type ApiWorkspaceMember,
+  type WorkspaceRole,
+  addWorkspaceTeamMemberInApi,
+  addWorkspaceTeamProductInApi,
+  createWorkspaceMemberInApi,
+  createWorkspaceTeamInApi,
+  deleteWorkspaceTeamInApi,
+  isProductgenApiConfigured,
+  listWorkspaceMembersFromApi,
+  listWorkspaceTeamsFromApi,
+  removeWorkspaceMemberFromApi,
+  removeWorkspaceTeamMemberInApi,
+  removeWorkspaceTeamProductInApi,
+  updateWorkspaceMemberInApi,
+  updateWorkspaceTeamInApi,
+} from "./productgen-api";
 
 export interface Member {
   id: string;
@@ -10,10 +29,14 @@ export interface Member {
   initials: string;
   color: string;
   role?: string;
+  workspaceRole?: WorkspaceRole;
+  joinedAt?: string;
+  lastAccessedAt?: string | null;
 }
 
 export interface Team {
   id: string;
+  code?: string;
   name: string;
   description?: string;
   color: string;
@@ -78,6 +101,7 @@ const seedMembers: Member[] = [
 const seedTeams: Team[] = [
   {
     id: "team-core",
+    code: "TM-01",
     name: "Squad Core",
     description: "Time multidisciplinar do PM Core",
     color: "var(--primary)",
@@ -86,6 +110,7 @@ const seedTeams: Team[] = [
   },
   {
     id: "team-insights",
+    code: "TM-02",
     name: "Squad Insights",
     description: "Discovery e research",
     color: "var(--purple)",
@@ -94,6 +119,7 @@ const seedTeams: Team[] = [
   },
   {
     id: "team-mobile",
+    code: "TM-03",
     name: "Squad Mobile",
     description: "App companion",
     color: "var(--warn-strong)",
@@ -162,8 +188,10 @@ const initial: State = {
 
 interface Ctx extends State {
   ready: boolean;
+  isRemoteBacked: boolean;
+  syncError?: string;
   // Members
-  addMember: (input: Omit<Member, "id" | "initials" | "color">) => Member;
+  addMember: (input: Omit<Member, "id" | "initials" | "color"> & { id?: string }) => Member;
   updateMember: (id: string, patch: Partial<Member>) => void;
   removeMember: (id: string) => void;
   // Teams
@@ -210,37 +238,82 @@ function makeInitials(name: string) {
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(initial);
   const [ready, setReady] = useState(false);
+  const [syncError, setSyncError] = useState<string>();
+  const isRemoteBacked = isProductgenApiConfigured();
+  const auth = useAuth();
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<State>;
-        setState({
-          members: parsed.members ?? initial.members,
-          teams: parsed.teams ?? initial.teams,
-          pillars: parsed.pillars ?? initial.pillars,
-          okrs: parsed.okrs ?? initial.okrs,
-        });
+    let cancelled = false;
+
+    function loadLocalState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<State>;
+          setState({
+            members: parsed.members ?? initial.members,
+            teams: parsed.teams ?? initial.teams,
+            pillars: parsed.pillars ?? initial.pillars,
+            okrs: parsed.okrs ?? initial.okrs,
+          });
+        }
+      } catch {
+        // ignore
       }
+    }
+
+    async function loadState() {
+      if (!isRemoteBacked) {
+        loadLocalState();
+        setReady(true);
+        return;
+      }
+
+      try {
+        const [members, teams] = await Promise.all([
+          listWorkspaceMembersFromApi(),
+          listWorkspaceTeamsFromApi(),
+        ]);
+        if (cancelled) return;
+        setState((current) => ({
+          ...current,
+          members: members.map(fromApiWorkspaceMember),
+          teams: teams.map(fromApiWorkspaceTeam),
+        }));
+        setSyncError(undefined);
+      } catch (error) {
+        if (cancelled) return;
+        setSyncError(error instanceof Error ? error.message : "Falha ao carregar membros da API.");
+        loadLocalState();
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+
+    void loadState();
+    return () => {
+      cancelled = true;
+    };
+  }, [isRemoteBacked]);
+
+  useEffect(() => {
+    if (!ready || isRemoteBacked) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // ignore
     }
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state, ready]);
+  }, [isRemoteBacked, ready, state]);
 
   const value = useMemo<Ctx>(() => {
     return {
       ...state,
       ready,
+      isRemoteBacked,
+      syncError,
       // ---- members ----
-      addMember: ({ name, email, role }) => {
-        const id = `mb-${Date.now()}`;
+      addMember: ({ id: requestedId, name, email, role, workspaceRole }) => {
+        const id = requestedId ?? `mb-${Date.now()}`;
         const m: Member = {
           id,
           name: name.trim() || "Sem nome",
@@ -248,8 +321,29 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           initials: makeInitials(name),
           color: teamColors[state.members.length % teamColors.length],
           role,
+          workspaceRole,
         };
         setState((s) => ({ ...s, members: [...s.members, m] }));
+        if (isRemoteBacked) {
+          void createWorkspaceMemberInApi({
+            user_id: id,
+            role: workspaceRole ?? "member",
+          })
+            .then((remoteMember) => {
+              setState((s) => ({
+                ...s,
+                members: s.members.map((member) =>
+                  member.id === id ? fromApiWorkspaceMember(remoteMember) : member,
+                ),
+              }));
+              setSyncError(undefined);
+              void auth.refresh();
+            })
+            .catch((error) => {
+              setState((s) => ({ ...s, members: s.members.filter((member) => member.id !== id) }));
+              setSyncError(error instanceof Error ? error.message : "Falha ao adicionar membro na API.");
+            });
+        }
         return m;
       },
       updateMember: (id, patch) => {
@@ -259,6 +353,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             m.id === id ? { ...m, ...patch, initials: patch.name ? makeInitials(patch.name) : m.initials } : m,
           ),
         }));
+        if (isRemoteBacked && patch.workspaceRole) {
+          void updateWorkspaceMemberInApi(id, patch.workspaceRole)
+            .then((remoteMember) => {
+              setState((s) => ({
+                ...s,
+                members: s.members.map((member) =>
+                  member.id === id ? fromApiWorkspaceMember(remoteMember) : member,
+                ),
+              }));
+              setSyncError(undefined);
+              void auth.refresh();
+            })
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao atualizar membro na API.");
+            });
+        }
       },
       removeMember: (id) => {
         setState((s) => ({
@@ -266,6 +376,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           members: s.members.filter((m) => m.id !== id),
           teams: s.teams.map((t) => ({ ...t, memberIds: t.memberIds.filter((x) => x !== id) })),
         }));
+        if (isRemoteBacked) {
+          void removeWorkspaceMemberFromApi(id)
+            .then(() => {
+              setSyncError(undefined);
+              void auth.refresh();
+            })
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao remover membro na API.");
+            });
+        }
       },
       // ---- teams ----
       addTeam: ({ name, description, productIds }) => {
@@ -279,6 +399,26 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           productIds: productIds ?? [],
         };
         setState((s) => ({ ...s, teams: [...s.teams, t] }));
+        if (isRemoteBacked) {
+          void createWorkspaceTeamInApi({
+            name: t.name,
+            description: t.description,
+            color: t.color,
+            product_ids: t.productIds,
+            member_ids: t.memberIds,
+          })
+            .then((remoteTeam) => {
+              setState((s) => ({
+                ...s,
+                teams: s.teams.map((team) => (team.id === id ? fromApiWorkspaceTeam(remoteTeam) : team)),
+              }));
+              setSyncError(undefined);
+            })
+            .catch((error) => {
+              setState((s) => ({ ...s, teams: s.teams.filter((team) => team.id !== id) }));
+              setSyncError(error instanceof Error ? error.message : "Falha ao criar grupo na API.");
+            });
+        }
         return t;
       },
       updateTeam: (id, patch) => {
@@ -286,11 +426,36 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           ...s,
           teams: s.teams.map((t) => (t.id === id ? { ...t, ...patch } : t)),
         }));
+        if (isRemoteBacked) {
+          void updateWorkspaceTeamInApi(id, {
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+            ...(patch.description !== undefined ? { description: patch.description ?? null } : {}),
+            ...(patch.color !== undefined ? { color: patch.color } : {}),
+          })
+            .then((remoteTeam) => {
+              setState((s) => ({
+                ...s,
+                teams: s.teams.map((team) => (team.id === id ? fromApiWorkspaceTeam(remoteTeam) : team)),
+              }));
+              setSyncError(undefined);
+            })
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao atualizar grupo na API.");
+            });
+        }
       },
       removeTeam: (id) => {
         setState((s) => ({ ...s, teams: s.teams.filter((t) => t.id !== id) }));
+        if (isRemoteBacked) {
+          void deleteWorkspaceTeamInApi(id)
+            .then(() => setSyncError(undefined))
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao remover grupo na API.");
+            });
+        }
       },
       toggleTeamProduct: (teamId, productId) => {
+        const currentlyLinked = state.teams.find((t) => t.id === teamId)?.productIds.includes(productId) ?? false;
         setState((s) => ({
           ...s,
           teams: s.teams.map((t) =>
@@ -304,8 +469,25 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
               : t,
           ),
         }));
+        if (isRemoteBacked) {
+          const request = currentlyLinked
+            ? removeWorkspaceTeamProductInApi(teamId, productId)
+            : addWorkspaceTeamProductInApi(teamId, productId);
+          void request
+            .then((remoteTeam) => {
+              setState((s) => ({
+                ...s,
+                teams: s.teams.map((team) => (team.id === teamId ? fromApiWorkspaceTeam(remoteTeam) : team)),
+              }));
+              setSyncError(undefined);
+            })
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao sincronizar produto do grupo.");
+            });
+        }
       },
       toggleTeamMember: (teamId, memberId) => {
+        const currentlyLinked = state.teams.find((t) => t.id === teamId)?.memberIds.includes(memberId) ?? false;
         setState((s) => ({
           ...s,
           teams: s.teams.map((t) =>
@@ -319,6 +501,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
               : t,
           ),
         }));
+        if (isRemoteBacked) {
+          const request = currentlyLinked
+            ? removeWorkspaceTeamMemberInApi(teamId, memberId)
+            : addWorkspaceTeamMemberInApi(teamId, memberId);
+          void request
+            .then((remoteTeam) => {
+              setState((s) => ({
+                ...s,
+                teams: s.teams.map((team) => (team.id === teamId ? fromApiWorkspaceTeam(remoteTeam) : team)),
+              }));
+              setSyncError(undefined);
+            })
+            .catch((error) => {
+              setSyncError(error instanceof Error ? error.message : "Falha ao sincronizar membro do grupo.");
+            });
+        }
       },
       teamsByProduct: (productId) => state.teams.filter((t) => t.productIds.includes(productId)),
       membersByProduct: (productId) => {
@@ -422,7 +620,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }));
       },
     };
-  }, [state, ready]);
+  }, [auth, isRemoteBacked, ready, state, syncError]);
 
   return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
 }
@@ -435,3 +633,38 @@ export function useWorkspace() {
 
 // Avoid unused warning for owners (kept for future role mapping)
 void owners;
+
+function fromApiWorkspaceMember(member: ApiWorkspaceMember): Member {
+  return {
+    id: member.user_id,
+    name: member.name,
+    email: member.email,
+    initials: makeInitials(member.name),
+    color: teamColors[Math.abs(hashString(member.user_id)) % teamColors.length],
+    role: member.role,
+    workspaceRole: member.role,
+    joinedAt: member.joined_at,
+    lastAccessedAt: member.last_accessed_at,
+  };
+}
+
+function fromApiWorkspaceTeam(team: ApiWorkspaceTeam): Team {
+  return {
+    id: team.id,
+    code: team.code,
+    name: team.name,
+    description: team.description ?? undefined,
+    color: team.color ?? teamColors[Math.abs(hashString(team.id)) % teamColors.length],
+    memberIds: team.member_ids,
+    productIds: team.product_ids,
+  };
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}

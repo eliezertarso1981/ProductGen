@@ -25,6 +25,7 @@ export const createPainSchema = z.object({
 export const updatePainSchema = z
   .object({
     title: z.string().min(3).max(200).optional(),
+    product_id: z.string().uuid().optional(),
     description: z.string().nullable().optional(),
     severity: z.number().int().min(1).max(5).nullable().optional(),
     reach_estimate: z.number().int().nonnegative().nullable().optional(),

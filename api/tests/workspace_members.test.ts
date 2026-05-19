@@ -117,7 +117,7 @@ describe('CRUD de workspace_members', () => {
     expect(get.statusCode).toBe(404);
   });
 
-  it('RLS: ator sem membership no workspace alvo não enxerga membro (404)', async () => {
+  it('RBAC: ator sem membership no workspace alvo recebe 403', async () => {
     const other = await createFixtures(adminPool);
 
     // Garante explicitamente que "other.user" não tem membership no workspace alvo
@@ -157,6 +157,7 @@ describe('CRUD de workspace_members', () => {
       headers: authHeader(otherToken),
     });
 
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).error.code).toBe('PERMISSION_DENIED');
   });
 });

@@ -7,6 +7,11 @@ import {
   updateProductSchema,
 } from './products.schemas';
 import * as service from './products.service';
+import { pool } from '../../db/pool';
+import {
+  assertProductPermission,
+  assertWorkspacePermission,
+} from '../../auth/permissions';
 
 export async function productsRoutes(app: FastifyInstance) {
   // GET /workspaces/:workspace_id/products
@@ -16,6 +21,10 @@ export async function productsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id } = request.params;
       const { user_id } = request.user;
+      if (workspace_id !== request.user.workspace_id) {
+        throw new AppError(403, 'FORBIDDEN', 'Workspace ativo inválido');
+      }
+      await assertWorkspacePermission(pool, request, workspace_id, 'product.read');
 
       const products = await service.listProducts(workspace_id, user_id);
       return reply.send(products);
@@ -29,6 +38,10 @@ export async function productsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id } = request.params;
       const { user_id } = request.user;
+      if (workspace_id !== request.user.workspace_id) {
+        throw new AppError(403, 'FORBIDDEN', 'Workspace ativo inválido');
+      }
+      await assertWorkspacePermission(pool, request, workspace_id, 'product.create');
 
       const parsed = createProductSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -47,6 +60,7 @@ export async function productsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
       const { workspace_id, user_id } = request.user;
+      await assertProductPermission(pool, request, id, 'product.read');
 
       const product = await service.getProduct(workspace_id, user_id, id);
       return reply.send(product);
@@ -60,6 +74,7 @@ export async function productsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
       const { workspace_id, user_id } = request.user;
+      await assertProductPermission(pool, request, id, 'product.update');
 
       const parsed = updateProductSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -78,6 +93,7 @@ export async function productsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params;
       const { workspace_id, user_id } = request.user;
+      await assertProductPermission(pool, request, id, 'product.archive');
 
       await service.deleteProduct(workspace_id, user_id, id);
       return reply.status(204).send();

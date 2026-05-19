@@ -43,6 +43,7 @@ describe('CRUD de hypotheses', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.id).toBeDefined();
+    expect(body.code).toMatch(/^HP-\d{2,}$/);
     expect(body.status).toBe('formulated');
     expect(body.if_clause).toBe(BASE_HYPOTHESIS.if_clause);
     hypothesisId = body.id;
@@ -59,6 +60,8 @@ describe('CRUD de hypotheses', () => {
     const body = JSON.parse(res.body);
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((h: { id: string }) => h.id === hypothesisId)).toBe(true);
+    const hypothesis = body.find((h: { id: string }) => h.id === hypothesisId);
+    expect(hypothesis.code).toMatch(/^HP-\d{2,}$/);
   });
 
   it('PATCH /hypotheses/:id/status faz a transição formulated → validating', async () => {
@@ -112,6 +115,7 @@ describe('CRUD de hypotheses', () => {
     expect(res.statusCode).toBe(201);
     const clone = JSON.parse(res.body);
     expect(clone.status).toBe('formulated');
+    expect(clone.code).toMatch(/^HP-\d{2,}$/);
     expect(clone.cloned_from_id).toBe(hypothesisId);
     expect(clone.if_clause).toBe(BASE_HYPOTHESIS.if_clause);
   });

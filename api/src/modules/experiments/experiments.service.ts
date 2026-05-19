@@ -45,6 +45,7 @@ export async function createExperiment(
 
       return repo.createExperiment(client, {
         workspace_id: workspaceId,
+        product_id: hypothesis.product_id,
         hypothesis_id: hypothesisId,
         title: input.title,
         method: input.method,

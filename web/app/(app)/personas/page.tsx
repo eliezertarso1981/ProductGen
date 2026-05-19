@@ -8,21 +8,29 @@ import { Plus, Users } from "lucide-react";
 import { usePersonas } from "@/lib/personas-store";
 import { useProducts } from "@/lib/products-context";
 import { useDores } from "@/lib/dores-store";
-import { getAvatar, scopeLabel, type PersonaScope } from "@/lib/personas-data";
+import { getAvatar, getPersonaDisplayId, scopeLabel, type PersonaScope } from "@/lib/personas-data";
+import { ListingToolbar } from "@/components/shared/crud-ui";
 
 type Filter = "all" | PersonaScope;
 
 export default function PersonasPage() {
   const router = useRouter();
-  const { ready, personas, createPersona } = usePersonas();
+  const { ready, personas, createPersona, isRemoteBacked, syncError } = usePersonas();
   const { products, currentProduct } = useProducts();
   const { pains } = useDores();
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
 
-  const filtered = useMemo(
-    () => (filter === "all" ? personas : personas.filter((p) => p.scope === filter)),
-    [personas, filter],
-  );
+  const filtered = useMemo(() => {
+    const scoped = filter === "all" ? personas : personas.filter((p) => p.scope === filter);
+    const query = search.trim().toLowerCase();
+    if (!query) return scoped;
+    return scoped.filter((p) =>
+      [getPersonaDisplayId(p), p.name, p.role, p.quote, scopeLabel[p.scope]]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query)),
+    );
+  }, [personas, filter, search]);
 
   const counts = useMemo(
     () => ({
@@ -35,9 +43,14 @@ export default function PersonasPage() {
   );
 
   const handleCreate = () => {
-    const p = createPersona({ scope: "product", productId: currentProduct.id });
-    toast.success("Persona criada");
-    router.push(`/personas/${p.id}?new=1`);
+    void createPersona({ scope: "product", productId: currentProduct.id })
+      .then((p) => {
+        toast.success("Persona criada");
+        router.push(`/personas/${p.id}?new=1`);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Não foi possível criar a persona");
+      });
   };
 
   const productName = (id?: string) => products.find((x) => x.id === id)?.name;
@@ -48,60 +61,55 @@ export default function PersonasPage() {
 
   return (
     <div className="px-6 py-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#dde0e8] bg-[#ffffff] pb-5">
         <div>
-          <div className="text-[13px]" style={{ color: "var(--fg-faint)" }}>
-            <Link href="/dashboard" className="hover:underline">Discovery</Link>
-            <span className="mx-1">›</span>
-            <span style={{ color: "var(--fg-muted)" }}>Personas</span>
+          <div className="text-[13px] text-[#9aa0b1]">
+            <Link href="/dashboard" className="hover:text-[#4e5567] hover:underline">Discovery</Link>
+            <span className="mx-1 text-[#c4c9d4]">›</span>
+            <span className="font-medium text-[#4e5567]">Personas</span>
           </div>
-          <h1
-            className="mt-1 text-[28px] font-semibold tracking-tight"
-            style={{ color: "var(--fg)" }}
-          >
+          <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.02em] text-[#2b364a]">
             Personas
           </h1>
-          <div className="mt-1 font-mono text-[13px]" style={{ color: "var(--fg-subtle)" }}>
+          <div className="mt-1 font-mono text-[13px] text-[#6b7287]">
             {personas.length} persona(s)
+          </div>
+          <div className="mt-0.5 text-[11px]" style={{ color: syncError ? "var(--danger-strong)" : "var(--fg-faint)" }}>
+            {syncError ? syncError : isRemoteBacked ? "Sincronizado com a API" : "Dados locais"}
           </div>
         </div>
         <button
           onClick={handleCreate}
-          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ backgroundColor: "var(--primary)" }}
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-[#13c8b5] px-4 text-[14px] font-medium text-white transition-colors hover:bg-[#21a3a3]"
+          type="button"
         >
-          <Plus size={14} /> Nova persona
+          <Plus size={16} /> Nova persona
         </button>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-1.5">
-        {(["all", "workspace", "product", "pain"] as const).map((k) => {
-          const active = filter === k;
-          const label =
+      <ListingToolbar
+        filters={(["all", "workspace", "product", "pain"] as const).map((k) => ({
+          label:
             k === "all"
               ? "Todas"
               : k === "workspace"
                 ? "Workspace"
                 : k === "product"
                   ? "Produto"
-                  : "Dor";
-          return (
-            <button
-              key={k}
-              onClick={() => setFilter(k)}
-              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] transition-colors"
-              style={{
-                borderColor: active ? "var(--primary)" : "var(--border)",
-                backgroundColor: active ? "var(--primary-soft)" : "var(--bg)",
-                color: active ? "var(--primary)" : "var(--fg-muted)",
-              }}
-            >
-              {label}
-              <span className="font-mono text-[11px] opacity-70">{counts[k]}</span>
-            </button>
-          );
-        })}
-      </div>
+                  : "Dor",
+          value: String(counts[k]),
+          active: filter === k,
+          onClick: () => setFilter(k),
+        }))}
+        search={search}
+        onSearchChange={setSearch}
+        views={[
+          { value: "grid", label: "cards" },
+          { value: "list", label: "lista" },
+        ]}
+        activeView="grid"
+        onViewChange={() => undefined}
+      />
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {filtered.length === 0 && (
@@ -125,8 +133,7 @@ export default function PersonasPage() {
             <Link
               key={persona.id}
               href={`/personas/${persona.id}`}
-              className="group rounded-xl border bg-white p-4 transition-shadow hover:shadow-md"
-              style={{ borderColor: "var(--border)" }}
+              className="group rounded-xl border border-[#dde0e8] bg-white p-4 transition-colors hover:border-[#c4c9d4]"
             >
               <div className="flex items-start gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -141,7 +148,7 @@ export default function PersonasPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-[10px] text-[var(--fg-faint)]">
-                      {persona.id}
+                      {getPersonaDisplayId(persona)}
                     </span>
                     <span
                       className="rounded-full px-1.5 py-0.5 text-[10px]"

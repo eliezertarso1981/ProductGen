@@ -5,6 +5,7 @@ export interface RoadmapItem {
   id: string;
   workspace_id: string;
   product_id: string;
+  code: string;
   parent_id: string | null;
   path: string | null; // ltree retorna como string
   type: DeliveryType;
@@ -106,17 +107,19 @@ export async function createRoadmapItem(
   client: PoolClient,
   data: CreateRoadmapItemData,
 ): Promise<RoadmapItem> {
+  const code = await nextRoadmapCode(client, data.product_id);
   // Passo 1: INSERT — o banco gera o id via DEFAULT gen_random_uuid()
   const insertResult = await client.query<RoadmapItem>(
     `INSERT INTO roadmap_items
-       (workspace_id, product_id, parent_id, type, title, description,
+       (workspace_id, product_id, code, parent_id, type, title, description,
         planned_start, planned_end, effort_estimate, priority_score,
         pillar_id, owner_id, external_system, external_id, external_url)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING *`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.parent_id ?? null,
       data.type,
       data.title,
@@ -153,6 +156,22 @@ export async function createRoadmapItem(
     [pathStr, item.id],
   );
   return normalize(updateResult.rows[0]);
+}
+
+async function nextRoadmapCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `roadmap:${productId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM roadmap_items
+     WHERE product_id = $1 AND code ~ '^RM-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `RM-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateRoadmapItem(

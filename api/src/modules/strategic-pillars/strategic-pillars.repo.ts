@@ -8,6 +8,7 @@ export interface StrategicPillar {
   id: string;
   workspace_id: string;
   product_id: string;
+  code: string;
   name: string;
   description: string | null;
   color: string | null;
@@ -17,7 +18,7 @@ export interface StrategicPillar {
   deleted_at: Date | null;
 }
 
-const SELECT_COLUMNS = `id, workspace_id, product_id, name, description, color, position,
+const SELECT_COLUMNS = `id, workspace_id, product_id, code, name, description, color, position,
   created_at, updated_at, deleted_at`;
 
 const UPDATABLE_FIELDS = ['name', 'description', 'color', 'position'] as const;
@@ -67,13 +68,15 @@ export async function createPillar(
     product_id: string;
   },
 ): Promise<StrategicPillar> {
+  const code = await nextPillarCode(client, data.product_id);
   const result = await client.query<StrategicPillar>(
-    `INSERT INTO strategic_pillars (workspace_id, product_id, name, description, color, position)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO strategic_pillars (workspace_id, product_id, code, name, description, color, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING ${SELECT_COLUMNS}`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.name,
       data.description ?? null,
       data.color ?? null,
@@ -81,6 +84,22 @@ export async function createPillar(
     ],
   );
   return result.rows[0];
+}
+
+async function nextPillarCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `strategic-pillars:${productId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM strategic_pillars
+     WHERE product_id = $1 AND code ~ '^PL-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `PL-${String(next).padStart(2, '0')}`;
 }
 
 export async function updatePillar(

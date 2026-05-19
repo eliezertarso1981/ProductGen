@@ -40,6 +40,78 @@ export async function linksRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get<{ Params: { pain_id: string } }>(
+    '/pains/:pain_id/strategic-pillars',
+    { preHandler: requireAuth, schema: linkRouteSchemas.listPainStrategicPillars },
+    async (request, reply) => {
+      const { pain_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      const rows = await service.listPainStrategicPillars(workspace_id, user_id, pain_id);
+      return reply.send(rows);
+    },
+  );
+
+  app.post<{ Params: { pain_id: string; pillar_id: string } }>(
+    '/pains/:pain_id/strategic-pillars/:pillar_id',
+    { preHandler: requireAuth, schema: linkRouteSchemas.linkPainStrategicPillar },
+    async (request, reply) => {
+      const { pain_id, pillar_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      await service.linkPainStrategicPillar(workspace_id, user_id, pain_id, pillar_id);
+      return reply.status(201).send({ pain_id, pillar_id });
+    },
+  );
+
+  app.delete<{ Params: { pain_id: string; pillar_id: string } }>(
+    '/pains/:pain_id/strategic-pillars/:pillar_id',
+    { preHandler: requireAuth, schema: linkRouteSchemas.unlinkPainStrategicPillar },
+    async (request, reply) => {
+      const { pain_id, pillar_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      await service.unlinkPainStrategicPillar(workspace_id, user_id, pain_id, pillar_id);
+      return reply.status(204).send();
+    },
+  );
+
+  app.get<{ Params: { pain_id: string } }>(
+    '/pains/:pain_id/objectives',
+    { preHandler: requireAuth, schema: linkRouteSchemas.listPainObjectives },
+    async (request, reply) => {
+      const { pain_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      const rows = await service.listPainObjectives(workspace_id, user_id, pain_id);
+      return reply.send(rows);
+    },
+  );
+
+  app.post<{ Params: { pain_id: string; objective_id: string } }>(
+    '/pains/:pain_id/objectives/:objective_id',
+    { preHandler: requireAuth, schema: linkRouteSchemas.linkPainObjective },
+    async (request, reply) => {
+      const { pain_id, objective_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      await service.linkPainObjective(workspace_id, user_id, pain_id, objective_id);
+      return reply.status(201).send({ pain_id, objective_id });
+    },
+  );
+
+  app.delete<{ Params: { pain_id: string; objective_id: string } }>(
+    '/pains/:pain_id/objectives/:objective_id',
+    { preHandler: requireAuth, schema: linkRouteSchemas.unlinkPainObjective },
+    async (request, reply) => {
+      const { pain_id, objective_id } = request.params;
+      const { workspace_id, user_id } = request.user;
+
+      await service.unlinkPainObjective(workspace_id, user_id, pain_id, objective_id);
+      return reply.status(204).send();
+    },
+  );
+
   app.get<{ Params: { hypothesis_id: string } }>(
     '/hypotheses/:hypothesis_id/roadmap',
     { preHandler: requireAuth, schema: linkRouteSchemas.listHypothesisRoadmap },

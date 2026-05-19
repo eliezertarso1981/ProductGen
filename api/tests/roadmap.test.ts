@@ -41,6 +41,7 @@ describe('CRUD de roadmap_items', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.type).toBe('initiative');
+    expect(body.code).toMatch(/^RM-\d{2,}$/);
     expect(body.status).toBe('proposed');
     // path é o id sem hifens (ltree converte - para _)
     expect(body.path).toBeTruthy();
@@ -63,6 +64,7 @@ describe('CRUD de roadmap_items', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.parent_id).toBe(initiativeId);
+    expect(body.code).toMatch(/^RM-\d{2,}$/);
     // path do filho começa com o path do pai
     const parentPath = initiativeId.replace(/-/g, '_');
     expect(body.path).toContain(parentPath);
@@ -77,8 +79,9 @@ describe('CRUD de roadmap_items', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const items = JSON.parse(res.body) as Array<{ id: string; path: string }>;
+    const items = JSON.parse(res.body) as Array<{ id: string; path: string; code: string }>;
     expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(items[0].code).toMatch(/^RM-\d{2,}$/);
 
     // O pai deve vir antes do filho (ordenação por path ltree)
     const parentIndex = items.findIndex((i) => i.id === initiativeId);

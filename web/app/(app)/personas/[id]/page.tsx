@@ -4,17 +4,21 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Trash2, Check } from "lucide-react";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ArrowLeft, Check } from "lucide-react";
+import { CancelAction, DeleteAction, FormActions, SaveAction } from "@/components/shared/crud-ui";
+import { MultiTagInput, SingleTagInput } from "@/components/shared/single-tag-input";
 import { usePersonas } from "@/lib/personas-store";
 import { useProducts } from "@/lib/products-context";
 import { useDores } from "@/lib/dores-store";
+import { getPainDisplayId } from "@/lib/dores-data";
 import {
   avatarOptions,
   digitalMaturityLabel,
   getAvatar,
+  getPersonaDisplayId,
   scopeLabel,
   type DigitalMaturity,
+  type Persona,
   type PersonaScope,
 } from "@/lib/personas-data";
 
@@ -27,14 +31,46 @@ export default function PersonaDetailPage({
   const router = useRouter();
   const search = useSearchParams();
   const isNew = search.get("new") === "1";
-  const { ready, getPersona, updatePersona, deletePersona } = usePersonas();
+  const { ready, personas, getPersona, updatePersona, deletePersona } = usePersonas();
   const { products } = useProducts();
   const { pains } = useDores();
 
   const persona = getPersona(id);
   const nameRef = useRef<HTMLInputElement>(null);
-  const [confirm, setConfirm] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [draft, setDraft] = useState<Parameters<typeof updatePersona>[1]>({});
+
+  useEffect(() => {
+    if (!persona) return;
+    setDraft({
+      avatarId: persona.avatarId,
+      name: persona.name,
+      role: persona.role,
+      age: persona.age,
+      gender: persona.gender,
+      segment: persona.segment,
+      companySize: persona.companySize,
+      quote: persona.quote,
+      responsibilities: persona.responsibilities,
+      dailyGoals: persona.dailyGoals,
+      operationalBehavior: persona.operationalBehavior,
+      kpis: persona.kpis,
+      pains: persona.pains,
+      buyingTriggers: persona.buyingTriggers,
+      objections: persona.objections,
+      decisionCriteria: persona.decisionCriteria,
+      buyingInfluence: persona.buyingInfluence,
+      digitalMaturity: persona.digitalMaturity,
+      tools: persona.tools,
+      channels: persona.channels,
+      motivators: persona.motivators,
+      fears: persona.fears,
+      successDefinition: persona.successDefinition,
+      scope: persona.scope,
+      productId: persona.productId,
+      painId: persona.painId,
+    });
+  }, [persona]);
 
   useEffect(() => {
     if (isNew && nameRef.current) {
@@ -59,40 +95,83 @@ export default function PersonaDetailPage({
     );
   }
 
-  const avatar = getAvatar(persona.avatarId);
-  const upd = (patch: Parameters<typeof updatePersona>[1]) => updatePersona(persona.id, patch);
+  const current = { ...persona, ...draft };
+  const avatar = getAvatar(current.avatarId);
+  const identityTagSuggestions = buildIdentityTagSuggestions(personas, persona);
+  const toolTagSuggestions = buildToolTagSuggestions(personas, persona);
+  const dirty = JSON.stringify(draft) !==
+    JSON.stringify({
+      avatarId: persona.avatarId,
+      name: persona.name,
+      role: persona.role,
+      age: persona.age,
+      gender: persona.gender,
+      segment: persona.segment,
+      companySize: persona.companySize,
+      quote: persona.quote,
+      responsibilities: persona.responsibilities,
+      dailyGoals: persona.dailyGoals,
+      operationalBehavior: persona.operationalBehavior,
+      kpis: persona.kpis,
+      pains: persona.pains,
+      buyingTriggers: persona.buyingTriggers,
+      objections: persona.objections,
+      decisionCriteria: persona.decisionCriteria,
+      buyingInfluence: persona.buyingInfluence,
+      digitalMaturity: persona.digitalMaturity,
+      tools: persona.tools,
+      channels: persona.channels,
+      motivators: persona.motivators,
+      fears: persona.fears,
+      successDefinition: persona.successDefinition,
+      scope: persona.scope,
+      productId: persona.productId,
+      painId: persona.painId,
+    });
+  const resetDraft = () => setDraft({
+    avatarId: persona.avatarId,
+    name: persona.name,
+    role: persona.role,
+    age: persona.age,
+    gender: persona.gender,
+    segment: persona.segment,
+    companySize: persona.companySize,
+    quote: persona.quote,
+    responsibilities: persona.responsibilities,
+    dailyGoals: persona.dailyGoals,
+    operationalBehavior: persona.operationalBehavior,
+    kpis: persona.kpis,
+    pains: persona.pains,
+    buyingTriggers: persona.buyingTriggers,
+    objections: persona.objections,
+    decisionCriteria: persona.decisionCriteria,
+    buyingInfluence: persona.buyingInfluence,
+    digitalMaturity: persona.digitalMaturity,
+    tools: persona.tools,
+    channels: persona.channels,
+    motivators: persona.motivators,
+    fears: persona.fears,
+    successDefinition: persona.successDefinition,
+    scope: persona.scope,
+    productId: persona.productId,
+    painId: persona.painId,
+  });
+  const upd = (patch: Parameters<typeof updatePersona>[1]) => setDraft((value) => ({ ...value, ...patch }));
+  const saveDraft = () => {
+    updatePersona(persona.id, draft);
+    toast.success("Persona salva");
+  };
 
   return (
     <div className="px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <Link
           href="/personas"
           className="inline-flex items-center gap-1.5 text-[13px] text-[var(--fg-subtle)] hover:text-[var(--fg)]"
         >
           <ArrowLeft size={14} /> Personas
         </Link>
-        <button
-          onClick={() => setConfirm(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"
-          style={{ borderColor: "var(--danger-border)" }}
-        >
-          <Trash2 size={13} /> Excluir
-        </button>
       </div>
-
-      <ConfirmDialog
-        open={confirm}
-        title="Excluir esta persona?"
-        description="Esta ação não pode ser desfeita."
-        confirmLabel="Excluir"
-        destructive
-        onCancel={() => setConfirm(false)}
-        onConfirm={() => {
-          deletePersona(persona.id);
-          toast.success("Persona excluída");
-          router.push("/personas");
-        }}
-      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         {/* Main */}
@@ -107,7 +186,7 @@ export default function PersonaDetailPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={avatar.url}
-                alt={persona.name}
+                alt={current.name}
                 width={88}
                 height={88}
                 className="h-22 w-22 rounded-full border-2"
@@ -124,16 +203,18 @@ export default function PersonaDetailPage({
             </button>
 
             <div className="min-w-0 flex-1">
-              <div className="font-mono text-[12px] text-[var(--fg-faint)]">{persona.id}</div>
+              <div className="font-mono text-[12px] text-[var(--fg-faint)]">
+                {getPersonaDisplayId(persona)}
+              </div>
               <input
                 ref={nameRef}
-                value={persona.name}
+                value={current.name}
                 onChange={(e) => upd({ name: e.target.value })}
                 placeholder="Nome da persona"
-                className="mt-0.5 w-full border-0 bg-transparent text-[24px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--border-strong)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
+                className="mt-0.5 w-full border-0 bg-transparent text-[28px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
               />
               <input
-                value={persona.role}
+                value={current.role}
                 onChange={(e) => upd({ role: e.target.value })}
                 placeholder="Cargo"
                 className="mt-0.5 w-full border-0 bg-transparent text-[14px] text-[var(--fg-muted)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
@@ -151,7 +232,7 @@ export default function PersonaDetailPage({
               </div>
               <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
                 {avatarOptions.map((opt) => {
-                  const active = opt.id === persona.avatarId;
+                  const active = opt.id === current.avatarId;
                   return (
                     <button
                       key={opt.id}
@@ -192,30 +273,35 @@ export default function PersonaDetailPage({
           <Section title="Identidade">
             <Grid2>
               <Field label="Idade">
-                <NumberInput
-                  value={persona.age}
-                  onChange={(v) => upd({ age: v })}
+                <SingleTagInput
+                  value={current.age === undefined ? "" : String(current.age)}
+                  onChange={(v) => upd({ age: parseAgeTagValue(v) })}
+                  suggestions={identityTagSuggestions.ages}
                   placeholder="Ex.: 32"
+                  inputMode="numeric"
                 />
               </Field>
               <Field label="Sexo">
-                <TextInput
-                  value={persona.gender ?? ""}
+                <SingleTagInput
+                  value={current.gender ?? ""}
                   onChange={(v) => upd({ gender: v })}
+                  suggestions={identityTagSuggestions.genders}
                   placeholder="Ex.: Feminino / Masculino / Outro"
                 />
               </Field>
               <Field label="Segmento">
-                <TextInput
-                  value={persona.segment ?? ""}
+                <SingleTagInput
+                  value={current.segment ?? ""}
                   onChange={(v) => upd({ segment: v })}
+                  suggestions={identityTagSuggestions.segments}
                   placeholder="Ex.: SaaS B2B"
                 />
               </Field>
               <Field label="Porte da empresa">
-                <TextInput
-                  value={persona.companySize ?? ""}
+                <SingleTagInput
+                  value={current.companySize ?? ""}
                   onChange={(v) => upd({ companySize: v })}
+                  suggestions={identityTagSuggestions.companySizes}
                   placeholder="Ex.: 200–800 colaboradores"
                 />
               </Field>
@@ -225,7 +311,7 @@ export default function PersonaDetailPage({
           {/* Frase típica */}
           <Section title="Frase típica">
             <Textarea
-              value={persona.quote ?? ""}
+              value={current.quote ?? ""}
               onChange={(v) => upd({ quote: v })}
               placeholder="“Eu não preciso de mais uma ferramenta...”"
               rows={2}
@@ -236,28 +322,28 @@ export default function PersonaDetailPage({
           <Section title="Trabalho e dia a dia">
             <Field label="Responsabilidades principais">
               <Textarea
-                value={persona.responsibilities ?? ""}
+                value={current.responsibilities ?? ""}
                 onChange={(v) => upd({ responsibilities: v })}
                 placeholder="O que ela é responsável por entregar"
               />
             </Field>
             <Field label="Objetivos do dia a dia">
               <Textarea
-                value={persona.dailyGoals ?? ""}
+                value={current.dailyGoals ?? ""}
                 onChange={(v) => upd({ dailyGoals: v })}
                 placeholder="O que tenta alcançar todos os dias"
               />
             </Field>
             <Field label="Comportamento operacional">
               <Textarea
-                value={persona.operationalBehavior ?? ""}
+                value={current.operationalBehavior ?? ""}
                 onChange={(v) => upd({ operationalBehavior: v })}
                 placeholder="Como organiza o trabalho, rituais, ferramentas..."
               />
             </Field>
             <Field label="Indicadores / KPIs que acompanha">
               <Textarea
-                value={persona.kpis ?? ""}
+                value={current.kpis ?? ""}
                 onChange={(v) => upd({ kpis: v })}
                 placeholder="Métricas que cobram dela"
               />
@@ -268,35 +354,35 @@ export default function PersonaDetailPage({
           <Section title="Compra e decisão">
             <Field label="Dores e frustrações">
               <Textarea
-                value={persona.pains ?? ""}
+                value={current.pains ?? ""}
                 onChange={(v) => upd({ pains: v })}
                 placeholder="O que dói no dia a dia"
               />
             </Field>
             <Field label="Gatilhos de compra">
               <Textarea
-                value={persona.buyingTriggers ?? ""}
+                value={current.buyingTriggers ?? ""}
                 onChange={(v) => upd({ buyingTriggers: v })}
                 placeholder="O que faz ela buscar uma solução"
               />
             </Field>
             <Field label="Barreiras e objeções">
               <Textarea
-                value={persona.objections ?? ""}
+                value={current.objections ?? ""}
                 onChange={(v) => upd({ objections: v })}
                 placeholder="O que pode impedir a compra"
               />
             </Field>
             <Field label="Critérios de decisão">
               <Textarea
-                value={persona.decisionCriteria ?? ""}
+                value={current.decisionCriteria ?? ""}
                 onChange={(v) => upd({ decisionCriteria: v })}
                 placeholder="Como avalia as opções"
               />
             </Field>
             <Field label="Influência no processo de compra">
               <Textarea
-                value={persona.buyingInfluence ?? ""}
+                value={current.buyingInfluence ?? ""}
                 onChange={(v) => upd({ buyingInfluence: v })}
                 placeholder="Decisor, influenciador, usuário, etc."
                 rows={2}
@@ -309,7 +395,7 @@ export default function PersonaDetailPage({
             <Grid2>
               <Field label="Maturidade digital">
                 <Select
-                  value={persona.digitalMaturity ?? ""}
+                  value={current.digitalMaturity ?? ""}
                   onChange={(v) =>
                     upd({ digitalMaturity: (v || undefined) as DigitalMaturity | undefined })
                   }
@@ -322,16 +408,17 @@ export default function PersonaDetailPage({
                 />
               </Field>
               <Field label="Ferramentas que utiliza">
-                <TextInput
-                  value={persona.tools ?? ""}
-                  onChange={(v) => upd({ tools: v })}
+                <MultiTagInput
+                  values={parseTagList(current.tools)}
+                  onChange={(values) => upd({ tools: serializeTagList(values) })}
+                  suggestions={toolTagSuggestions}
                   placeholder="Jira, Notion, Slack..."
                 />
               </Field>
             </Grid2>
             <Field label="Canais de informação e aprendizado">
               <Textarea
-                value={persona.channels ?? ""}
+                value={current.channels ?? ""}
                 onChange={(v) => upd({ channels: v })}
                 placeholder="Onde se informa, comunidades, newsletters"
                 rows={2}
@@ -343,21 +430,21 @@ export default function PersonaDetailPage({
           <Section title="Motivações e medos">
             <Field label="Motivadores profissionais">
               <Textarea
-                value={persona.motivators ?? ""}
+                value={current.motivators ?? ""}
                 onChange={(v) => upd({ motivators: v })}
                 placeholder="O que a impulsiona profissionalmente"
               />
             </Field>
             <Field label="Medos e riscos que tenta evitar">
               <Textarea
-                value={persona.fears ?? ""}
+                value={current.fears ?? ""}
                 onChange={(v) => upd({ fears: v })}
                 placeholder="O que ela teme e quer evitar"
               />
             </Field>
             <Field label="Como define sucesso no trabalho">
               <Textarea
-                value={persona.successDefinition ?? ""}
+                value={current.successDefinition ?? ""}
                 onChange={(v) => upd({ successDefinition: v })}
                 placeholder="Como sabe que fez um bom trabalho"
                 rows={2}
@@ -371,15 +458,15 @@ export default function PersonaDetailPage({
           <Field label="Vínculo">
             <div className="grid grid-cols-3 gap-1.5">
               {(["workspace", "product", "pain"] as PersonaScope[]).map((s) => {
-                const active = persona.scope === s;
+                const active = current.scope === s;
                 return (
                   <button
                     key={s}
                     onClick={() => {
                       upd({
                         scope: s,
-                        productId: s === "product" ? persona.productId : undefined,
-                        painId: s === "pain" ? persona.painId : undefined,
+                        productId: s === "product" ? current.productId : undefined,
+                        painId: s === "pain" ? current.painId : undefined,
                       });
                     }}
                     className="rounded-md border px-2 py-1.5 text-[12px] font-medium transition-colors"
@@ -396,10 +483,10 @@ export default function PersonaDetailPage({
             </div>
           </Field>
 
-          {persona.scope === "product" && (
+          {current.scope === "product" && (
             <Field label="Produto">
               <Select
-                value={persona.productId ?? ""}
+                value={current.productId ?? ""}
                 onChange={(v) => upd({ productId: v || undefined })}
                 options={[
                   { value: "", label: "Selecione um produto" },
@@ -409,14 +496,17 @@ export default function PersonaDetailPage({
             </Field>
           )}
 
-          {persona.scope === "pain" && (
+          {current.scope === "pain" && (
             <Field label="Dor">
               <Select
-                value={persona.painId ?? ""}
+                value={current.painId ?? ""}
                 onChange={(v) => upd({ painId: v || undefined })}
                 options={[
                   { value: "", label: "Selecione uma dor" },
-                  ...pains.map((p) => ({ value: p.id, label: `${p.id} — ${p.title}` })),
+                  ...pains.map((p) => ({
+                    value: p.id,
+                    label: getPainDisplayId(p) ? `${getPainDisplayId(p)} — ${p.title}` : p.title,
+                  })),
                 ]}
               />
             </Field>
@@ -433,7 +523,7 @@ export default function PersonaDetailPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={avatar.url}
-                alt={persona.name}
+                alt={current.name}
                 width={48}
                 height={48}
                 className="h-12 w-12 rounded-full border bg-white"
@@ -441,18 +531,94 @@ export default function PersonaDetailPage({
               />
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-semibold text-[var(--fg)]">
-                  {persona.name || "Sem nome"}
+                  {current.name || "Sem nome"}
                 </div>
                 <div className="truncate text-[11px] text-[var(--fg-muted)]">
-                  {persona.role || "—"}
+                  {current.role || "—"}
                 </div>
               </div>
             </div>
           </div>
         </aside>
       </div>
+
+      <FormActions>
+        <SaveAction disabled={!dirty} onClick={saveDraft} />
+        <CancelAction disabled={!dirty} onClick={resetDraft} />
+        <DeleteAction
+          title="Excluir esta persona?"
+          description={`A persona "${persona.name || "sem nome"}" será removida. Esta ação não pode ser desfeita.`}
+          onConfirm={() => {
+            deletePersona(persona.id);
+            toast.success("Persona excluída");
+            router.push("/personas");
+          }}
+        />
+      </FormActions>
     </div>
   );
+}
+
+function buildIdentityTagSuggestions(personas: Persona[], currentPersona: Persona) {
+  const otherPersonas = personas.filter((item) => !isSamePersona(item, currentPersona));
+
+  return {
+    ages: uniqueTagValues(otherPersonas.map((item) => item.age)),
+    genders: uniqueTagValues(otherPersonas.map((item) => item.gender)),
+    segments: uniqueTagValues(otherPersonas.map((item) => item.segment)),
+    companySizes: uniqueTagValues(otherPersonas.map((item) => item.companySize)),
+  };
+}
+
+function buildToolTagSuggestions(personas: Persona[], currentPersona: Persona): string[] {
+  return uniqueTagValues(
+    personas
+      .filter((item) => !isSamePersona(item, currentPersona))
+      .flatMap((item) => parseTagList(item.tools)),
+  );
+}
+
+function isSamePersona(item: Persona, currentPersona: Persona): boolean {
+  return (
+    item.id === currentPersona.id ||
+    Boolean(currentPersona.apiId && item.apiId === currentPersona.apiId) ||
+    Boolean(currentPersona.code && item.code === currentPersona.code)
+  );
+}
+
+function uniqueTagValues(values: Array<number | string | undefined>): string[] {
+  const seen = new Set<string>();
+
+  return values.reduce<string[]>((acc, value) => {
+    const tag = value === undefined ? "" : String(value).trim();
+    const key = tag.toLocaleLowerCase("pt-BR");
+    if (!tag || seen.has(key)) return acc;
+
+    seen.add(key);
+    acc.push(tag);
+    return acc;
+  }, []);
+}
+
+function parseAgeTagValue(value: string): number | undefined {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return undefined;
+
+  const age = Number(trimmedValue);
+  return Number.isFinite(age) ? age : undefined;
+}
+
+function parseTagList(value?: string): string[] {
+  if (!value) return [];
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function serializeTagList(values: string[]): string {
+  return uniqueTagValues(values).join(", ");
 }
 
 /* ---------- UI primitives ---------- */
@@ -503,30 +669,6 @@ function TextInput({
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={inputCls}
-      style={{ borderColor: "var(--border)" }}
-    />
-  );
-}
-
-function NumberInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value?: number;
-  onChange: (v: number | undefined) => void;
-  placeholder?: string;
-}) {
-  return (
-    <input
-      type="number"
-      value={value ?? ""}
-      onChange={(e) => {
-        const v = e.target.value;
-        onChange(v === "" ? undefined : Number(v));
-      }}
       placeholder={placeholder}
       className={inputCls}
       style={{ borderColor: "var(--border)" }}

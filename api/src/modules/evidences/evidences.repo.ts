@@ -5,6 +5,7 @@ type EvidenceRow = {
   id: string;
   workspace_id: string;
   product_id: string | null;
+  code: string;
   title: string;
   content: string;
   source: string;
@@ -26,7 +27,7 @@ export async function findEvidencesByProduct(
   const { rows } = await client.query<EvidenceRow>(
     `
     SELECT
-      id, workspace_id, product_id, title, content, source, source_url,
+      id, workspace_id, product_id, code, title, content, source, source_url,
       customer_identifier, status, collected_at, created_by, metadata,
       created_at, updated_at, deleted_at
     FROM evidences
@@ -46,7 +47,7 @@ export async function findEvidenceById(
   const { rows } = await client.query<EvidenceRow>(
     `
     SELECT
-      id, workspace_id, product_id, title, content, source, source_url,
+      id, workspace_id, product_id, code, title, content, source, source_url,
       customer_identifier, status, collected_at, created_by, metadata,
       created_at, updated_at, deleted_at
     FROM evidences
@@ -73,11 +74,13 @@ export async function createEvidence(
     metadata: unknown;
   },
 ) {
+  const code = await nextEvidenceCode(client, input.product_id);
   const { rows } = await client.query<EvidenceRow>(
     `
     INSERT INTO evidences (
       workspace_id,
       product_id,
+      code,
       title,
       content,
       source,
@@ -89,18 +92,19 @@ export async function createEvidence(
       metadata
     )
     VALUES (
-      $1,$2,$3,$4,$5,$6,$7,
-      COALESCE($8::evidence_status, 'new'::evidence_status),
-      $9,$10,$11
+      $1,$2,$3,$4,$5,$6,$7,$8,
+      COALESCE($9::evidence_status, 'new'::evidence_status),
+      $10,$11,$12
     )
     RETURNING
-      id, workspace_id, product_id, title, content, source, source_url,
+      id, workspace_id, product_id, code, title, content, source, source_url,
       customer_identifier, status, collected_at, created_by, metadata,
       created_at, updated_at, deleted_at
     `,
     [
       input.workspace_id,
       input.product_id,
+      code,
       input.title,
       input.content,
       input.source,
@@ -114,6 +118,23 @@ export async function createEvidence(
   );
 
   return rows[0];
+}
+
+async function nextEvidenceCode(client: PoolClient, productId: string | null): Promise<string> {
+  const scope = productId ?? 'workspace';
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `evidences:${scope}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM evidences
+     WHERE product_id IS NOT DISTINCT FROM $1 AND code ~ '^EV-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `EV-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateEvidence(
@@ -134,7 +155,7 @@ export async function updateEvidence(
       metadata = COALESCE($8, metadata)
     WHERE id = $1 AND deleted_at IS NULL
     RETURNING
-      id, workspace_id, product_id, title, content, source, source_url,
+      id, workspace_id, product_id, code, title, content, source, source_url,
       customer_identifier, status, collected_at, created_by, metadata,
       created_at, updated_at, deleted_at
     `,
@@ -164,7 +185,7 @@ export async function updateEvidenceStatus(
     SET status = $2::evidence_status
     WHERE id = $1 AND deleted_at IS NULL
     RETURNING
-      id, workspace_id, product_id, title, content, source, source_url,
+      id, workspace_id, product_id, code, title, content, source, source_url,
       customer_identifier, status, collected_at, created_by, metadata,
       created_at, updated_at, deleted_at
     `,

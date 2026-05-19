@@ -5,6 +5,7 @@ export interface Hypothesis {
   id: string;
   workspace_id: string;
   product_id: string;
+  code: string;
   title: string;
   if_clause: string;
   then_clause: string;
@@ -74,15 +75,17 @@ export async function createHypothesis(
   client: PoolClient,
   data: CreateHypothesisData,
 ): Promise<Hypothesis> {
+  const code = await nextHypothesisCode(client, data.product_id);
   const result = await client.query<Hypothesis>(
     `INSERT INTO hypotheses
-       (workspace_id, product_id, title, if_clause, then_clause, because_clause,
+       (workspace_id, product_id, code, title, if_clause, then_clause, because_clause,
         assumptions, confidence, owner_id, cloned_from_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.title,
       data.if_clause,
       data.then_clause,
@@ -94,6 +97,22 @@ export async function createHypothesis(
     ],
   );
   return result.rows[0];
+}
+
+async function nextHypothesisCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `hypotheses:${productId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM hypotheses
+     WHERE product_id = $1 AND code ~ '^HP-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `HP-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateHypothesis(

@@ -7,6 +7,7 @@ let app: ReturnType<typeof buildApp>;
 let adminPool: Pool;
 let token: string;
 let productId: string;
+let secondProductId: string;
 let painId: string;
 
 beforeAll(async () => {
@@ -16,6 +17,18 @@ beforeAll(async () => {
   adminPool = new Pool({ connectionString: process.env.ADMIN_DATABASE_URL });
   const fixtures = await createFixtures(adminPool);
   productId = fixtures.product.id;
+  const secondProduct = await adminPool.query<{ id: string }>(
+    `INSERT INTO products (workspace_id, slug, name)
+     VALUES ($1, $2, 'Second Test Product')
+     RETURNING id`,
+    [fixtures.workspace.id, `second-test-product-${Date.now()}`],
+  );
+  secondProductId = secondProduct.rows[0].id;
+  await adminPool.query(
+    `INSERT INTO product_members (product_id, workspace_id, user_id, role)
+     VALUES ($1, $2, $3, 'owner')`,
+    [secondProductId, fixtures.workspace.id, fixtures.user.id],
+  );
   token = await loginAs(app, fixtures.email, fixtures.slug);
 });
 
@@ -41,6 +54,7 @@ describe('CRUD de pains', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.id).toBeDefined();
+    expect(body.code).toMatch(/^PN-\d+$/);
     expect(body.status).toBe('identified');
     expect(body.severity).toBe(4);
     painId = body.id; // guarda para os próximos testes
@@ -58,6 +72,7 @@ describe('CRUD de pains', () => {
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBeGreaterThan(0);
     expect(body[0].product_id).toBe(productId);
+    expect(body[0].code).toBeDefined();
   });
 
   it('GET /pains/:id retorna a dor criada', async () => {
@@ -83,6 +98,33 @@ describe('CRUD de pains', () => {
     const body = JSON.parse(res.body);
     expect(body.severity).toBe(5);
     expect(body.reach_estimate).toBe(500);
+  });
+
+  it('PATCH /pains/:id move a dor para outro produto', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/pains/${painId}`,
+      headers: authHeader(token),
+      payload: { product_id: secondProductId },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.product_id).toBe(secondProductId);
+
+    const sourceList = await app.inject({
+      method: 'GET',
+      url: `/products/${productId}/pains`,
+      headers: authHeader(token),
+    });
+    expect(JSON.parse(sourceList.body).some((pain: { id: string }) => pain.id === painId)).toBe(false);
+
+    const targetList = await app.inject({
+      method: 'GET',
+      url: `/products/${secondProductId}/pains`,
+      headers: authHeader(token),
+    });
+    expect(JSON.parse(targetList.body).some((pain: { id: string }) => pain.id === painId)).toBe(true);
   });
 
   it('PATCH /pains/:id/status faz a transição identified → investigating', async () => {

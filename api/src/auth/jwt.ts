@@ -1,27 +1,44 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, importPKCS8, importSPKI, jwtVerify } from 'jose';
 import { config } from '../config/env';
 
 export interface JwtPayload {
   user_id: string;
-  workspace_id: string;
-  role: string;
+  email: string;
+  session_id: string;
+  token_type?: 'access';
 }
 
-const secret = new TextEncoder().encode(config.JWT_SECRET);
+const privateKey = importPKCS8(normalizePem(config.JWT_PRIVATE_KEY), 'RS256');
+const publicKey = importSPKI(normalizePem(config.JWT_PUBLIC_KEY), 'RS256');
 
-export async function signToken(payload: JwtPayload): Promise<string> {
+async function signToken(payload: JwtPayload, expirationTime: string): Promise<string> {
   return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: 'RS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
-    .sign(secret);
+    .setExpirationTime(expirationTime)
+    .sign(await privateKey);
+}
+
+export async function signAccessToken(payload: Omit<JwtPayload, 'token_type'>): Promise<string> {
+  return signToken({ ...payload, token_type: 'access' }, '15m');
 }
 
 export async function verifyToken(token: string): Promise<JwtPayload> {
-  const { payload } = await jwtVerify(token, secret);
+  const { payload } = await jwtVerify(token, await publicKey);
   return {
     user_id: payload['user_id'] as string,
-    workspace_id: payload['workspace_id'] as string,
-    role: payload['role'] as string,
+    email: payload['email'] as string,
+    session_id: payload['session_id'] as string,
+    token_type: payload['token_type'] as JwtPayload['token_type'],
   };
+}
+
+export async function verifyAccessToken(token: string): Promise<JwtPayload> {
+  const payload = await verifyToken(token);
+  if (payload.token_type !== 'access') throw new Error('Invalid access token');
+  return payload;
+}
+
+function normalizePem(value: string): string {
+  return value.replace(/\\n/g, '\n');
 }

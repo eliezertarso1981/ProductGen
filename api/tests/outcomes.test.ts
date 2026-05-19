@@ -51,8 +51,11 @@ describe('P2 Strategy — outcomes', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     outcomeId = body.id;
+    expect(body.code).toBe('OC-01');
+    expect(body.code).not.toBe(body.id);
     expect(body.status).toBe('hypothesized');
     expect(body.measurement_window_days).toBe(60);
+    expect(body.baseline_value).toBe(120);
   });
 
   it('GET lista outcomes do roadmap item', async () => {
@@ -62,7 +65,9 @@ describe('P2 Strategy — outcomes', () => {
       headers: authHeader(token),
     });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).length).toBe(1);
+    const body = JSON.parse(res.body);
+    expect(body.length).toBe(1);
+    expect(body[0].code).toBe('OC-01');
   });
 
   it('PATCH /outcomes/:id/status transiciona lifecycle', async () => {
@@ -84,6 +89,10 @@ describe('P2 Strategy — outcomes', () => {
       payload: { final_value: 85, conclusion: 'Melhoria observada na média' },
     });
     expect(patch.statusCode).toBe(200);
+    expect(JSON.parse(patch.body)).toMatchObject({
+      final_value: 85,
+      conclusion: 'Melhoria observada na média',
+    });
 
     const del = await app.inject({
       method: 'DELETE',

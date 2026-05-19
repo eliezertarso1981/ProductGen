@@ -6,16 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Trash2,
   Paperclip,
   X,
   Send,
   Check,
   ChevronDown,
 } from "lucide-react";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
   ownersList,
+  getPainDisplayId,
   severityColor,
   statusConfig,
   type PainAttachment,
@@ -28,11 +27,16 @@ import { useDiscovery } from "@/lib/discovery-store";
 import { useStrategy } from "@/lib/strategy-store";
 import {
   hypothesisStatusConfig,
+  getHypothesisDisplayId,
+  getRoadmapDisplayId,
   roadmapStatusConfig,
 } from "@/lib/discovery-data";
-import { formatPeriod, okrStatusConfig, type OKR, type Pillar } from "@/lib/strategy-data";
+import { formatPeriod, getOKRDisplayId, okrStatusConfig, type OKR, type Pillar } from "@/lib/strategy-data";
 import { Plus } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
+import { CancelAction, DeleteAction, FormActions, SaveAction } from "@/components/shared/crud-ui";
+import { usePersonas } from "@/lib/personas-store";
+import { getAvatar, getPersonaDisplayId, type Persona } from "@/lib/personas-data";
 
 export default function PainDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -48,15 +52,32 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
     createRoadmap,
   } = useDiscovery();
   const { pillarsByProduct, okrsByProduct, getPillar, getOKR } = useStrategy();
+  const { personas, personasByPain, updatePersona } = usePersonas();
 
   const pain = getPain(id);
+  const displayId = pain ? getPainDisplayId(pain) : null;
   const linkedHypotheses = pain ? hypothesesByPain(pain.id) : [];
   const linkedRoadmap = pain ? roadmapByPain(pain.id) : [];
+  const linkedPersonas = pain ? personasByPain(pain.id) : [];
   const productPillars = pain ? pillarsByProduct(pain.productId) : [];
   const productOkrs = pain ? okrsByProduct(pain.productId) : [];
 
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const painId = pain?.id;
+  const painTitle = pain?.title ?? "";
+  const painDescription = pain?.description ?? "";
+  const painDueDate = pain?.dueDate ? pain.dueDate.slice(0, 10) : "";
+  const [draft, setDraft] = useState({ title: "", description: "", dueDate: "" });
+
+  useEffect(() => {
+    if (!painId) return;
+    setDraft({
+      title: painTitle,
+      description: painDescription,
+      dueDate: painDueDate,
+    });
+  }, [painDescription, painDueDate, painId, painTitle]);
+
   useEffect(() => {
     if (isNew && titleInputRef.current) {
       titleInputRef.current.focus();
@@ -77,69 +98,85 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
       </div>
     );
   }
+  const dirty =
+    draft.title !== pain.title ||
+    draft.description !== pain.description ||
+    draft.dueDate !== (pain.dueDate ? pain.dueDate.slice(0, 10) : "");
+  const resetDraft = () =>
+    setDraft({
+      title: pain.title,
+      description: pain.description,
+      dueDate: pain.dueDate ? pain.dueDate.slice(0, 10) : "",
+    });
+  const saveDraft = () => {
+    updatePain(pain.id, {
+      title: draft.title.trim() || pain.title,
+      description: draft.description,
+      dueDate: draft.dueDate ? new Date(draft.dueDate).toISOString() : undefined,
+    });
+    toast.success("Dor salva");
+  };
 
   return (
     <div className="px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4">
         <Link
           href="/dores"
           className="inline-flex items-center gap-1.5 text-[13px] text-[var(--fg-subtle)] hover:text-[var(--fg)]"
         >
           <ArrowLeft size={14} /> Dores
         </Link>
-        <button
-          onClick={() => setConfirmDelete(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"
-          style={{ borderColor: "var(--danger-border)" }}
-        >
-          <Trash2 size={13} /> Excluir
-        </button>
       </div>
-
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Excluir esta dor?"
-        description="Esta ação remove a dor e suas referências locais. Não pode ser desfeita."
-        confirmLabel="Excluir"
-        destructive
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={() => {
-          deletePain(pain.id);
-          setConfirmDelete(false);
-          toast.success("Dor excluída");
-          router.push("/dores");
-        }}
-      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         <div>
-          <div className="font-mono text-[12px] text-[var(--fg-faint)]">{pain.id}</div>
+          {displayId && <div className="font-mono text-[12px] text-[var(--fg-faint)]">{displayId}</div>}
           <input
             ref={titleInputRef}
-            value={pain.title}
-            onChange={(e) => updatePain(pain.id, { title: e.target.value })}
+            value={draft.title}
+            onChange={(e) => setDraft((current) => ({ ...current, title: e.target.value }))}
             placeholder="Título da dor"
-            className="mt-1 w-full border-0 bg-transparent text-[24px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--border-strong)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
+            className="mt-1 w-full border-0 bg-transparent text-[28px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
           />
 
           <Section title="Descrição">
             <textarea
-              value={pain.description}
-              onChange={(e) => updatePain(pain.id, { description: e.target.value })}
+              value={draft.description}
+              onChange={(e) => setDraft((current) => ({ ...current, description: e.target.value }))}
               placeholder="Descreva o problema, contexto e impacto..."
-              rows={5}
-              className="w-full rounded-md border bg-white px-3 py-2 text-[14px] text-[var(--fg)] outline-none transition-colors placeholder:text-[var(--border-strong)] focus:border-[var(--primary)]"
+              rows={6}
+              className="w-full rounded-md border bg-white px-3.5 py-2.5 text-[16px] leading-6 text-[var(--fg)] outline-none transition-colors placeholder:text-[var(--fg-faint)] focus:border-[var(--primary)]"
               style={{ borderColor: "var(--border)" }}
             />
           </Section>
 
+          <FormActions>
+            <SaveAction disabled={!dirty} onClick={saveDraft} />
+            <CancelAction disabled={!dirty} onClick={resetDraft} />
+            <DeleteAction
+              title="Excluir esta dor?"
+              description="Esta ação remove a dor e suas referências locais. Não pode ser desfeita."
+              onConfirm={() => {
+                deletePain(pain.id);
+                toast.success("Dor excluída");
+                router.push("/dores");
+              }}
+            />
+          </FormActions>
+
           <Section
+            id="hipoteses"
             title={`Hipóteses geradas (${linkedHypotheses.length})`}
             action={
               <button
                 onClick={() => {
-                  const h = createHypothesis(pain.productId, pain.id);
-                  router.push(`/hipoteses/${h.id}?new=1`);
+                  void createHypothesis(pain.productId, pain.id)
+                    .then((h) => {
+                      router.push(`/hipoteses/${h.id}?new=1`);
+                    })
+                    .catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível criar a hipótese");
+                    });
                 }}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
@@ -162,7 +199,9 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
                         style={{ borderColor: "var(--border)" }}
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">{h.id}</span>
+                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">
+                            {getHypothesisDisplayId(h) ?? "Hipótese"}
+                          </span>
                           <span className="truncate text-[var(--fg)]">{h.title}</span>
                         </span>
                         <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
@@ -183,8 +222,13 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
               action={
                 <button
                   onClick={() => {
-                    const r = createRoadmap(pain.productId, pain.id);
-                    router.push(`/roadmap/${r.id}?new=1`);
+                    void createRoadmap(pain.productId, pain.id)
+                      .then((r) => {
+                        router.push(`/roadmap/${r.id}?new=1`);
+                      })
+                      .catch((error) => {
+                        toast.error(error instanceof Error ? error.message : "Não foi possível criar o roadmap");
+                      });
                   }}
                   className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                   style={{ borderColor: "var(--border)" }}
@@ -207,7 +251,9 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
                           style={{ borderColor: "var(--border)" }}
                         >
                           <span className="flex min-w-0 items-center gap-2">
-                            <span className="font-mono text-[11px] text-[var(--fg-faint)]">{r.id}</span>
+                            <span className="font-mono text-[11px] text-[var(--fg-faint)]">
+                              {getRoadmapDisplayId(r) ?? "Roadmap"}
+                            </span>
                             <span className="truncate text-[var(--fg)]">{r.title}</span>
                           </span>
                           <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
@@ -297,7 +343,9 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
                         style={{ borderColor: "var(--border)" }}
                       >
                         <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="font-mono text-[10px] text-[var(--fg-faint)]">{o.id}</span>
+                          <span className="font-mono text-[10px] text-[var(--fg-faint)]">
+                            {getOKRDisplayId(o) ?? "OKR"}
+                          </span>
                           <span className="truncate text-[var(--fg)]">{o.objective}</span>
                         </span>
                         <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-[var(--fg-muted)]">
@@ -312,15 +360,31 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
             )}
           </Field>
 
+          <Field id="personas" label="Personas vinculadas">
+            <PersonaMultiSelect
+              selected={linkedPersonas}
+              personas={personas}
+              onChange={(ids) => {
+                const selectedIds = new Set(ids);
+                for (const persona of personas) {
+                  const isCurrentlyLinked = persona.scope === "pain" && persona.painId === pain.id;
+                  const shouldBeLinked = selectedIds.has(persona.id);
+                  if (shouldBeLinked && !isCurrentlyLinked) {
+                    updatePersona(persona.id, { scope: "pain", painId: pain.id });
+                  }
+                  if (!shouldBeLinked && isCurrentlyLinked) {
+                    updatePersona(persona.id, { scope: "workspace", painId: undefined });
+                  }
+                }
+              }}
+            />
+          </Field>
+
           <Field label="Data prevista de validação">
             <input
               type="date"
-              value={pain.dueDate ? pain.dueDate.slice(0, 10) : ""}
-              onChange={(e) =>
-                updatePain(pain.id, {
-                  dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
-                })
-              }
+              value={draft.dueDate}
+              onChange={(e) => setDraft((current) => ({ ...current, dueDate: e.target.value }))}
               className="w-full rounded-md border bg-white px-2.5 py-1.5 text-[13px] text-[var(--fg)] outline-none focus:border-[var(--primary)]"
               style={{ borderColor: "var(--border)" }}
             />
@@ -339,16 +403,18 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
 }
 
 function Section({
+  id,
   title,
   action,
   children,
 }: {
+  id?: string;
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="mt-6">
+    <div id={id} className="mt-6 scroll-mt-24">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-faint)]">
           {title}
@@ -360,9 +426,9 @@ function Section({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div id={id} className="scroll-mt-24">
       <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-faint)]">
         {label}
       </div>
@@ -780,7 +846,9 @@ function OkrMultiSelect({
               >
                 <span className="flex min-w-0 flex-col">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-[var(--fg-faint)]">{o.id}</span>
+                    <span className="font-mono text-[10px] text-[var(--fg-faint)]">
+                      {getOKRDisplayId(o) ?? "OKR"}
+                    </span>
                     <span className="rounded-full border px-1.5 text-[10px] text-[var(--fg-muted)]" style={{ borderColor: "var(--border)" }}>
                       {formatPeriod(o.period)}
                     </span>
@@ -788,6 +856,78 @@ function OkrMultiSelect({
                   <span className="truncate text-[var(--fg)]">{o.objective}</span>
                 </span>
                 {isSel && <Check size={14} color="var(--primary)" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PersonaMultiSelect({
+  selected,
+  personas,
+  onChange,
+}: {
+  selected: Persona[];
+  personas: Persona[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedIds = new Set(selected.map((persona) => persona.id));
+  const toggle = (id: string) => {
+    if (selectedIds.has(id)) onChange(selected.map((persona) => persona.id).filter((value) => value !== id));
+    else onChange([...selected.map((persona) => persona.id), id]);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-md border bg-white px-2.5 py-1.5 text-[13px] hover:bg-[var(--bg-muted)]"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span className="text-[var(--fg)]">
+          {selected.length === 0 ? (
+            <span className="text-[var(--fg-faint)]">Nenhuma</span>
+          ) : (
+            `${selected.length} selecionada(s)`
+          )}
+        </span>
+        <ChevronDown size={14} color="var(--fg-faint)" />
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-white py-1 shadow-lg" style={{ borderColor: "var(--border)" }}>
+          {personas.length === 0 && (
+            <div className="px-2.5 py-2 text-[12px] text-[var(--fg-faint)]">Nenhuma persona criada.</div>
+          )}
+          {personas.map((persona) => {
+            const isSelected = selectedIds.has(persona.id);
+            const avatar = getAvatar(persona.avatarId);
+            return (
+              <button
+                key={persona.id}
+                onClick={() => toggle(persona.id)}
+                className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[13px] hover:bg-[var(--bg-muted)]"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={avatar.url}
+                    alt={persona.name}
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 shrink-0 rounded-full bg-white"
+                  />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-mono text-[10px] text-[var(--fg-faint)]">
+                      {getPersonaDisplayId(persona)}
+                    </span>
+                    <span className="truncate text-[var(--fg)]">{persona.name || "Sem nome"}</span>
+                  </span>
+                </span>
+                {isSelected && <Check size={14} color="var(--primary)" />}
               </button>
             );
           })}

@@ -50,6 +50,100 @@ export async function unlinkPainHypothesis(
   if (!removed) throw new AppError(404, 'NOT_FOUND', 'Vínculo não encontrado');
 }
 
+export async function listPainStrategicPillars(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+) {
+  return withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+    if (!(await repo.painExists(client, painId))) {
+      throw new AppError(404, 'NOT_FOUND', 'Dor não encontrada');
+    }
+    return repo.listStrategicPillarsForPain(client, painId);
+  });
+}
+
+export async function linkPainStrategicPillar(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+  pillarId: string,
+) {
+  try {
+    await withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+      if (!(await repo.painExists(client, painId))) {
+        throw new AppError(404, 'NOT_FOUND', 'Dor não encontrada');
+      }
+      if (!(await repo.strategicPillarExists(client, pillarId))) {
+        throw new AppError(404, 'NOT_FOUND', 'Pilar estratégico não encontrado');
+      }
+      await repo.linkPainStrategicPillar(client, workspaceId, painId, pillarId);
+    });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    mapDbError(err);
+  }
+}
+
+export async function unlinkPainStrategicPillar(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+  pillarId: string,
+) {
+  const removed = await withWorkspaceTx(pool, workspaceId, actorId, (client) =>
+    repo.unlinkPainStrategicPillar(client, painId, pillarId),
+  );
+  if (!removed) throw new AppError(404, 'NOT_FOUND', 'Vínculo não encontrado');
+}
+
+export async function listPainObjectives(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+) {
+  return withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+    if (!(await repo.painExists(client, painId))) {
+      throw new AppError(404, 'NOT_FOUND', 'Dor não encontrada');
+    }
+    return repo.listObjectivesForPain(client, painId);
+  });
+}
+
+export async function linkPainObjective(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+  objectiveId: string,
+) {
+  try {
+    await withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+      if (!(await repo.painExists(client, painId))) {
+        throw new AppError(404, 'NOT_FOUND', 'Dor não encontrada');
+      }
+      if (!(await repo.objectiveExists(client, objectiveId))) {
+        throw new AppError(404, 'NOT_FOUND', 'Objetivo não encontrado');
+      }
+      await repo.linkPainObjective(client, workspaceId, painId, objectiveId);
+    });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    mapDbError(err);
+  }
+}
+
+export async function unlinkPainObjective(
+  workspaceId: string,
+  actorId: string,
+  painId: string,
+  objectiveId: string,
+) {
+  const removed = await withWorkspaceTx(pool, workspaceId, actorId, (client) =>
+    repo.unlinkPainObjective(client, painId, objectiveId),
+  );
+  if (!removed) throw new AppError(404, 'NOT_FOUND', 'Vínculo não encontrado');
+}
+
 export async function listHypothesisRoadmap(
   workspaceId: string,
   actorId: string,
