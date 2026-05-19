@@ -39,6 +39,11 @@ export async function verifyAccessToken(token: string): Promise<JwtPayload> {
   return payload;
 }
 
-function normalizePem(value: string): string {
+export function normalizePem(value: string): string {
   return value.replace(/\\n/g, '\n');
+}
+
+export async function validateJwtKeys(): Promise<void> {
+  await importPKCS8(normalizePem(config.JWT_PRIVATE_KEY), 'RS256');
+  await importSPKI(normalizePem(config.JWT_PUBLIC_KEY), 'RS256');
 }

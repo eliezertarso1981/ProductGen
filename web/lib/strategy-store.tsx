@@ -581,11 +581,15 @@ export function StrategyProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (patch.status && patch.status !== current.status) {
-            const remoteObjective = await transitionObjectiveStatusInApi(id, UI_TO_API_OKR_STATUS[patch.status]);
+            const nextStatus = patch.status;
+            const remoteObjective = await transitionObjectiveStatusInApi(
+              id,
+              UI_TO_API_OKR_STATUS[nextStatus],
+            );
             setState((s) => ({
               ...s,
               okrs: s.okrs.map((okr) =>
-                okr.id === id ? { ...mergeLocalOKR(okr, remoteObjective), status: patch.status } : okr,
+                okr.id === id ? { ...mergeLocalOKR(okr, remoteObjective), status: nextStatus } : okr,
               ),
             }));
           }

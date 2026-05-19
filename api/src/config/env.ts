@@ -2,7 +2,9 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().url('DATABASE_URL deve ser uma URL válida'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL é obrigatório'),
+  /** `true`/`false` ou omitido (SSL ligado em production). */
+  DATABASE_SSL: z.enum(['true', 'false', '1', '0']).optional(),
   JWT_PRIVATE_KEY: z.string().min(1, 'JWT_PRIVATE_KEY é obrigatório'),
   JWT_PUBLIC_KEY: z.string().min(1, 'JWT_PUBLIC_KEY é obrigatório'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -24,4 +26,18 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const config = parsed.data;
+const env = parsed.data;
+
+function resolveDatabaseSsl(
+  value: (typeof env)['DATABASE_SSL'],
+  nodeEnv: (typeof env)['NODE_ENV'],
+): boolean {
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  return nodeEnv === 'production';
+}
+
+export const config = {
+  ...env,
+  DATABASE_SSL: resolveDatabaseSsl(env.DATABASE_SSL, env.NODE_ENV),
+};
