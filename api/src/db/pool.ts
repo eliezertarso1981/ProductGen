@@ -6,9 +6,9 @@ export const pool = new Pool({
   max: 20,                    // máximo de conexões simultâneas
   idleTimeoutMillis: 30_000,  // encerra conexão ociosa após 30s
   connectionTimeoutMillis: 2_000,
+  ssl: config.DATABASE_SSL ? { rejectUnauthorized: false } : undefined,
 });
 
 pool.on('error', (err) => {
-  console.error('Erro inesperado no pool de conexões do Postgres:', err);
-  process.exit(1);
+  console.error('Erro inesperado no pool de conexões do Postgres (conexão ociosa):', err);
 });
