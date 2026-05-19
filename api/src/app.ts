@@ -33,6 +33,7 @@ import { registerOpenApiSchemas } from './docs/openapi-schemas';
 export function buildApp() {
   const app = Fastify({
     logger: { level: config.LOG_LEVEL },
+    trustProxy: config.NODE_ENV === 'production',
   });
 
   registerOpenApiSchemas(app);

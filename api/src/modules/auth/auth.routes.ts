@@ -19,18 +19,20 @@ const accessCookie = 'pg_access';
 const refreshCookie = 'pg_refresh';
 const workspaceCookie = 'pg_workspace';
 const isProduction = config.NODE_ENV === 'production';
+const sameSite = config.COOKIE_SAME_SITE;
+const cookieSecure = isProduction || sameSite === 'none';
 
 const accessCookieOptions = {
   httpOnly: true,
-  secure: isProduction,
-  sameSite: 'lax' as const,
+  secure: cookieSecure,
+  sameSite,
   path: '/',
 };
 
 const refreshCookieOptions = {
   httpOnly: true,
-  secure: isProduction,
-  sameSite: 'strict' as const,
+  secure: cookieSecure,
+  sameSite,
   path: '/auth/refresh',
 };
 

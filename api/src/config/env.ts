@@ -9,6 +9,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   COOKIE_SECRET: z.string().min(32, 'COOKIE_SECRET deve ter no mínimo 32 caracteres'),
+  /** Use `none` quando front e API estão em domínios diferentes (ex.: Railway). Requer HTTPS. */
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),
