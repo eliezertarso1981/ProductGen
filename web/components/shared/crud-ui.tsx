@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Columns3, Download, LayoutGrid, List, Plus, Save, Search, Trash2, X } from "lucide-react";
@@ -126,11 +127,27 @@ export function DeleteAction({
   );
 }
 
+/** Padding inferior para páginas de detalhe com FormActions fixo. */
+export const detailPageClassName = "px-6 py-5 pb-28";
+
 export function FormActions({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[calc(100%-2rem)] flex-wrap items-center justify-end gap-2 sm:bottom-6 sm:right-6 sm:w-[592px] lg:w-[672px] xl:w-[712px] [&>*]:pointer-events-auto">
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="pointer-events-none fixed bottom-4 right-4 z-[80] flex w-[calc(100%-2rem)] flex-wrap items-center justify-end gap-2 sm:bottom-6 sm:right-6 sm:w-[592px] lg:w-[672px] xl:w-[712px] [&>*]:pointer-events-auto"
+      role="group"
+      aria-label="Ações do formulário"
+    >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -200,7 +200,6 @@ pre {
 }
 .route-page-pending {
   opacity: 0.78;
-  transform: translateY(2px);
 }
 .route-progress-bar {
   width: 100%;

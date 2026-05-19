@@ -34,7 +34,13 @@ import {
 import { formatPeriod, getOKRDisplayId, okrStatusConfig, type OKR, type Pillar } from "@/lib/strategy-data";
 import { Plus } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
-import { CancelAction, DeleteAction, FormActions, SaveAction } from "@/components/shared/crud-ui";
+import {
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
+  FormActions,
+  SaveAction,
+} from "@/components/shared/crud-ui";
 import { usePersonas } from "@/lib/personas-store";
 import { getAvatar, getPersonaDisplayId, type Persona } from "@/lib/personas-data";
 
@@ -118,7 +124,7 @@ export default function PainDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   return (
-    <div className="px-6 py-5">
+    <div className={detailPageClassName}>
       <div className="mb-4">
         <Link
           href="/dores"

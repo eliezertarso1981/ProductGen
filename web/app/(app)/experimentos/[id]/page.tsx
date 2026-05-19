@@ -19,6 +19,7 @@ import {
   BackLink,
   CancelAction,
   DeleteAction,
+  detailPageClassName,
   Field,
   FormActions,
   SaveAction,
@@ -124,7 +125,7 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   };
 
   return (
-    <div className="px-6 py-5">
+    <div className={detailPageClassName}>
       <div className="mb-4">
         <BackLink href="/experimentos" label="Experimentos" />
       </div>

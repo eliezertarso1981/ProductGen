@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, X, Check, ChevronDown } from "lucide-react";
-import { CancelAction, DeleteAction, FormActions, SaveAction } from "@/components/shared/crud-ui";
+import {
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
+  FormActions,
+  SaveAction,
+} from "@/components/shared/crud-ui";
 import { useStrategy } from "@/lib/strategy-store";
 import { useDores } from "@/lib/dores-store";
 import { getPainDisplayId } from "@/lib/dores-data";
@@ -151,7 +157,7 @@ export default function OkrDetailPage({ params }: { params: Promise<{ id: string
   };
 
   return (
-    <div className="px-6 py-5">
+    <div className={detailPageClassName}>
       <div className="mb-4">
         <Link href="/okrs" className="inline-flex items-center gap-1.5 text-[13px] text-[var(--fg-subtle)] hover:text-[var(--fg)]">
           <ArrowLeft size={14} /> OKRs

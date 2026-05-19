@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Check } from "lucide-react";
-import { CancelAction, DeleteAction, FormActions, SaveAction } from "@/components/shared/crud-ui";
+import {
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
+  FormActions,
+  SaveAction,
+} from "@/components/shared/crud-ui";
 import { MultiTagInput, SingleTagInput } from "@/components/shared/single-tag-input";
 import { usePersonas } from "@/lib/personas-store";
 import { useProducts } from "@/lib/products-context";
@@ -163,7 +169,7 @@ export default function PersonaDetailPage({
   };
 
   return (
-    <div className="px-6 py-5">
+    <div className={detailPageClassName}>
       <div className="mb-4">
         <Link
           href="/personas"
