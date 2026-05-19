@@ -53,6 +53,8 @@ describe('CRUD de experiments', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.status).toBe('planned');
+    expect(body.product_id).toBeDefined();
+    expect(body.code).toMatch(/^EX-\d{2,}$/);
     experimentId = body.id;
   });
 
@@ -63,7 +65,9 @@ describe('CRUD de experiments', () => {
       headers: authHeader(token),
     });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse(res.body);
+    expect(body.length).toBeGreaterThanOrEqual(1);
+    expect(body[0].code).toMatch(/^EX-\d{2,}$/);
   });
 
   it('fluxo planned → running → completed → analyzed permite validar hipótese', async () => {

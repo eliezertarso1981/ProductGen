@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { colors, shadow } from "@/lib/design-tokens";
 
 interface Props {
   open: boolean;
@@ -24,35 +25,43 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    cancelButtonRef.current?.focus();
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
-      if (e.key === "Enter") onConfirm();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel, onConfirm]);
+  }, [open, onCancel]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 animate-fade-in"
+      className="fixed inset-0 z-[100] flex animate-fade-in items-center justify-center bg-[rgba(15,20,25,0.50)] p-4"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm rounded-xl border p-5 shadow-xl animate-scale-in"
-        style={{ backgroundColor: "var(--bg-elevated)", borderColor: "var(--border)" }}
+        className="relative w-full max-w-[480px] animate-scale-in rounded-xl border border-[#dde0e8] bg-[#ffffff] p-8"
+        style={{ boxShadow: shadow.lg }}
       >
         <button
           onClick={onCancel}
           aria-label="Fechar"
-          className="absolute right-3 top-3 rounded-md p-1 hover:bg-[var(--bg-muted)]"
-          style={{ color: "var(--fg-subtle)" }}
+          title="Fechar"
+          className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-md text-[#4e5567] transition-colors hover:bg-[#eef0f4]"
+          type="button"
         >
           <X size={16} />
         </button>
@@ -61,23 +70,24 @@ export function ConfirmDialog({
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
             style={{
-              backgroundColor: destructive ? "var(--danger-soft)" : "var(--primary-soft)",
-              color: destructive ? "var(--danger)" : "var(--primary)",
+              backgroundColor: destructive ? colors.semantic.dangerBg : "rgba(19, 200, 181, 0.10)",
+              color: destructive ? colors.semantic.danger : colors.primary,
             }}
+            aria-hidden
           >
             <AlertTriangle size={18} />
           </div>
           <div className="min-w-0 flex-1">
             <h2
-              className="text-[15px] font-semibold leading-snug"
-              style={{ color: "var(--fg)" }}
+              id={titleId}
+              className="text-[22px] font-semibold leading-tight tracking-[-0.01em] text-[#2b364a]"
             >
               {title}
             </h2>
             {description && (
               <p
-                className="mt-1 text-[13px] leading-relaxed"
-                style={{ color: "var(--fg-subtle)" }}
+                id={descriptionId}
+                className="mt-2 text-[14px] leading-relaxed text-[#6b7287]"
               >
                 {description}
               </p>
@@ -87,17 +97,25 @@ export function ConfirmDialog({
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <button
+            ref={cancelButtonRef}
             onClick={onCancel}
-            className="rounded-md border px-3 py-1.5 text-[13px] font-medium hover:bg-[var(--bg-muted)]"
-            style={{ borderColor: "var(--border)", color: "var(--fg-muted)" }}
+            className="inline-flex h-10 items-center rounded-md border border-[#dde0e8] bg-[#ffffff] px-4 text-[14px] font-medium text-[#4e5567] transition-colors hover:bg-[#f7f8fa]"
+            type="button"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-md px-3 py-1.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-10 items-center rounded-md px-4 text-[14px] font-medium text-white transition-colors"
+            type="button"
             style={{
-              backgroundColor: destructive ? "var(--danger)" : "var(--primary)",
+              backgroundColor: destructive ? colors.semantic.danger : colors.primary,
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.backgroundColor = destructive ? "#b91c1c" : colors.primaryHover;
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.backgroundColor = destructive ? colors.semantic.danger : colors.primary;
             }}
           >
             {confirmLabel}

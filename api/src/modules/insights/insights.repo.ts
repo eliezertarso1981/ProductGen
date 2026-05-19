@@ -4,7 +4,8 @@ import type { CreateInsightInput, UpdateInsightInput } from './insights.schemas'
 export interface Insight {
   id: string;
   workspace_id: string;
-  product_id: string | null;
+  product_id: string;
+  code: string;
   title: string;
   description: string;
   confidence_score: number | null;
@@ -35,7 +36,7 @@ export async function findInsightsByProduct(
   productId: string,
 ): Promise<Insight[]> {
   const result = await client.query<Insight>(
-    `SELECT id, workspace_id, product_id, title, description,
+    `SELECT id, workspace_id, product_id, code, title, description,
             confidence_score, impact_score, frequency_score, evidence_count,
             owner_id, metadata, created_at, updated_at, deleted_at
      FROM insights
@@ -48,7 +49,7 @@ export async function findInsightsByProduct(
 
 export async function findInsightById(client: PoolClient, id: string): Promise<Insight | null> {
   const result = await client.query<Insight>(
-    `SELECT id, workspace_id, product_id, title, description,
+    `SELECT id, workspace_id, product_id, code, title, description,
             confidence_score, impact_score, frequency_score, evidence_count,
             owner_id, metadata, created_at, updated_at, deleted_at
      FROM insights WHERE id = $1 AND deleted_at IS NULL`,
@@ -61,17 +62,19 @@ export async function createInsight(
   client: PoolClient,
   data: CreateInsightInput & { workspace_id: string; product_id: string },
 ): Promise<Insight> {
+  const code = await nextInsightCode(client, data.product_id);
   const result = await client.query<Insight>(
     `INSERT INTO insights (
-       workspace_id, product_id, title, description,
+       workspace_id, product_id, code, title, description,
        confidence_score, impact_score, frequency_score, owner_id, metadata
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, workspace_id, product_id, title, description,
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     RETURNING id, workspace_id, product_id, code, title, description,
                confidence_score, impact_score, frequency_score, evidence_count,
                owner_id, metadata, created_at, updated_at, deleted_at`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.title,
       data.description,
       data.confidence_score ?? null,
@@ -82,6 +85,22 @@ export async function createInsight(
     ],
   );
   return result.rows[0];
+}
+
+async function nextInsightCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`insights:${productId}:code`]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code
+     FROM insights
+     WHERE product_id = $1
+       AND code ~ '^IN-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `IN-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateInsight(
@@ -104,7 +123,7 @@ export async function updateInsight(
   const result = await client.query<Insight>(
     `UPDATE insights SET ${setClauses}
      WHERE id = $${entries.length + 1} AND deleted_at IS NULL
-     RETURNING id, workspace_id, product_id, title, description,
+     RETURNING id, workspace_id, product_id, code, title, description,
                confidence_score, impact_score, frequency_score, evidence_count,
                owner_id, metadata, created_at, updated_at, deleted_at`,
     [...values, id],
@@ -171,7 +190,7 @@ export async function unlinkEvidence(
 
 export async function listLinkedEvidences(client: PoolClient, insightId: string) {
   const result = await client.query(
-    `SELECT e.id, e.title, e.source, e.status, e.collected_at, l.created_at AS linked_at
+    `SELECT e.id, e.code, e.title, e.source, e.status, e.collected_at, l.created_at AS linked_at
      FROM evidence_insight_links l
      JOIN evidences e ON e.id = l.evidence_id AND e.deleted_at IS NULL
      WHERE l.insight_id = $1

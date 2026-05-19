@@ -5,6 +5,7 @@ export interface Pain {
   id: string;
   workspace_id: string;
   product_id: string;
+  code: string;
   parent_pain_id: string | null;
   root_pain_id: string | null;
   title: string;
@@ -45,7 +46,7 @@ interface CreatePainData {
 
 // Campos permitidos no UPDATE — lista explícita evita que nomes vindos de fora
 // entrem na query como coluna (defesa extra além da validação Zod)
-const UPDATABLE_FIELDS = ['title', 'description', 'severity', 'reach_estimate', 'owner_id'] as const;
+const UPDATABLE_FIELDS = ['title', 'product_id', 'description', 'severity', 'reach_estimate', 'owner_id'] as const;
 type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
 type UpdatePainData = Partial<Record<UpdatableField, string | number | null>>;
 
@@ -68,13 +69,15 @@ export async function findPainById(client: PoolClient, id: string): Promise<Pain
 }
 
 export async function createPain(client: PoolClient, data: CreatePainData): Promise<Pain> {
+  const code = await nextPainCode(client, data.product_id);
   const result = await client.query<Pain>(
-    `INSERT INTO pains (workspace_id, product_id, title, description, severity, reach_estimate, owner_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO pains (workspace_id, product_id, code, title, description, severity, reach_estimate, owner_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.title,
       data.description ?? null,
       data.severity ?? null,
@@ -193,8 +196,22 @@ export async function mergePains(
     );
 
     await client.query(
-      `INSERT INTO pain_hypothesis_links (pain_id, hypothesis_id)
-       SELECT $1, hypothesis_id FROM pain_hypothesis_links WHERE pain_id = $2
+      `INSERT INTO pain_hypothesis_links (pain_id, hypothesis_id, workspace_id)
+       SELECT $1, hypothesis_id, workspace_id FROM pain_hypothesis_links WHERE pain_id = $2
+       ON CONFLICT DO NOTHING`,
+      [targetPainId, sourceId],
+    );
+
+    await client.query(
+      `INSERT INTO pain_strategic_pillar_links (pain_id, pillar_id, workspace_id)
+       SELECT $1, pillar_id, workspace_id FROM pain_strategic_pillar_links WHERE pain_id = $2
+       ON CONFLICT DO NOTHING`,
+      [targetPainId, sourceId],
+    );
+
+    await client.query(
+      `INSERT INTO pain_objective_links (pain_id, objective_id, workspace_id)
+       SELECT $1, objective_id, workspace_id FROM pain_objective_links WHERE pain_id = $2
        ON CONFLICT DO NOTHING`,
       [targetPainId, sourceId],
     );
@@ -217,15 +234,17 @@ export async function splitPain(
   const created: Pain[] = [];
 
   for (const child of children) {
+    const code = await nextPainCode(client, parentPain.product_id);
     const result = await client.query<Pain>(
       `INSERT INTO pains (
-         workspace_id, product_id, parent_pain_id, root_pain_id,
+         workspace_id, product_id, code, parent_pain_id, root_pain_id,
          title, description, severity, reach_estimate, owner_id
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         workspaceId,
         parentPain.product_id,
+        code,
         parentPain.id,
         rootId,
         child.title,
@@ -245,8 +264,22 @@ export async function splitPain(
     );
 
     await client.query(
-      `INSERT INTO pain_hypothesis_links (pain_id, hypothesis_id)
-       SELECT $1, hypothesis_id FROM pain_hypothesis_links WHERE pain_id = $2
+      `INSERT INTO pain_hypothesis_links (pain_id, hypothesis_id, workspace_id)
+       SELECT $1, hypothesis_id, workspace_id FROM pain_hypothesis_links WHERE pain_id = $2
+       ON CONFLICT DO NOTHING`,
+      [childPain.id, parentPain.id],
+    );
+
+    await client.query(
+      `INSERT INTO pain_strategic_pillar_links (pain_id, pillar_id, workspace_id)
+       SELECT $1, pillar_id, workspace_id FROM pain_strategic_pillar_links WHERE pain_id = $2
+       ON CONFLICT DO NOTHING`,
+      [childPain.id, parentPain.id],
+    );
+
+    await client.query(
+      `INSERT INTO pain_objective_links (pain_id, objective_id, workspace_id)
+       SELECT $1, objective_id, workspace_id FROM pain_objective_links WHERE pain_id = $2
        ON CONFLICT DO NOTHING`,
       [childPain.id, parentPain.id],
     );
@@ -260,4 +293,20 @@ export async function splitPain(
   );
 
   return created;
+}
+
+async function nextPainCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`pains:${productId}:code`]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code
+     FROM pains
+     WHERE product_id = $1
+       AND code ~ '^PN-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `PN-${String(next).padStart(2, '0')}`;
 }

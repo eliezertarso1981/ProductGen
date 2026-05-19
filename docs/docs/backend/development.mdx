@@ -34,7 +34,7 @@ GET /openapi.json
 
 ## Módulos implementados
 
-- `auth`: login local de desenvolvimento e JWT.
+- `auth`: login local com senha, access token curto em cookie HTTP-only e sessão renovável.
 - `products`: CRUD de produtos por workspace.
 - `workspace-members`: CRUD de membros do workspace.
 - `evidences`: CRUD e transição de status de evidências.
@@ -73,3 +73,19 @@ Antes de abrir PR, confira se o contrato está sincronizado:
 cd api
 npm run openapi:check
 ```
+
+## Estratégia de autenticação
+
+O ProductGen usa autenticação local por enquanto, mas a API isola esse comportamento por trás de uma fronteira de provedor de identidade. Isso mantém `users`, `workspaces` e `workspace_members` como fonte de autorização do produto e deixa espaço para trocar o provedor de login no futuro.
+
+Fluxo atual:
+
+1. `POST /auth/login` valida `email` e `password`.
+2. A API grava `pg_access` e `pg_refresh` como cookies HTTP-only.
+3. O access token é RS256 e contém apenas `user_id`, `email` e `session_id`.
+4. O refresh token é opaco, salvo como hash em `user_sessions` e rotacionado em `POST /auth/refresh`.
+5. Rotas protegidas resolvem o workspace ativo por `X-Workspace-Id`, cookie `pg_workspace` ou último acesso.
+6. `GET /auth/me` faz o bootstrap do usuário, workspaces e produtos acessíveis.
+7. `POST /auth/logout` revoga a sessão atual e remove os cookies.
+
+Keycloak ou outro provedor OIDC deve ser adotado quando houver demanda concreta de SSO corporativo, SAML/LDAP/AD, self-host por compliance ou capacidade operacional para manter realms, clients, upgrades, backup e observabilidade.

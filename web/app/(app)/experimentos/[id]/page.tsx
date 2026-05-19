@@ -1,19 +1,28 @@
 "use client";
 
-import { use, useEffect, useRef } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Trash2, Plus, Check, X } from "lucide-react";
+import { toast } from "sonner";
+import { Plus, Check, X } from "lucide-react";
 import { useDiscovery } from "@/lib/discovery-store";
 import {
   experimentStatusConfig,
   experimentStatuses,
   experimentResultConfig,
   evidenceTypeConfig,
+  getEvidenceDisplayId,
+  getExperimentDisplayId,
+  getHypothesisDisplayId,
 } from "@/lib/discovery-data";
 import {
   BackLink,
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
   Field,
+  FormActions,
+  SaveAction,
   Select,
   Textarea,
   TextInput,
@@ -37,6 +46,35 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   } = useDiscovery();
 
   const titleRef = useRef<HTMLInputElement>(null);
+  const exp = getExperiment(id);
+  const expId = exp?.id;
+  const expTitle = exp?.title ?? "";
+  const expDescription = exp?.description ?? "";
+  const expMethod = exp?.method ?? "";
+  const expExpectedResults = exp?.expectedResults;
+  const expStartDate = exp?.startDate ? exp.startDate.slice(0, 10) : "";
+  const expEndDate = exp?.endDate ? exp.endDate.slice(0, 10) : "";
+  const [draft, setDraft] = useState({
+    title: "",
+    description: "",
+    method: "",
+    expectedResults: [] as string[],
+    startDate: "",
+    endDate: "",
+  });
+
+  useEffect(() => {
+    if (!expId) return;
+    setDraft({
+      title: expTitle,
+      description: expDescription,
+      method: expMethod,
+      expectedResults: expExpectedResults ?? [],
+      startDate: expStartDate,
+      endDate: expEndDate,
+    });
+  }, [expDescription, expEndDate, expExpectedResults, expId, expMethod, expStartDate, expTitle]);
+
   useEffect(() => {
     if (isNew) {
       titleRef.current?.focus();
@@ -45,7 +83,6 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   }, [isNew]);
 
   if (!ready) return <div className="px-6 py-10 text-[var(--fg-faint)]">Carregando...</div>;
-  const exp = getExperiment(id);
   if (!exp)
     return (
       <div className="px-6 py-10">
@@ -58,33 +95,50 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
 
   const hyp = exp.hypothesisId ? getHypothesis(exp.hypothesisId) : undefined;
   const evidences = evidencesByExperiment(exp.id);
+  const displayId = getExperimentDisplayId(exp);
+  const dirty =
+    draft.title !== exp.title ||
+    draft.description !== exp.description ||
+    draft.method !== exp.method ||
+    draft.startDate !== (exp.startDate ? exp.startDate.slice(0, 10) : "") ||
+    draft.endDate !== (exp.endDate ? exp.endDate.slice(0, 10) : "") ||
+    JSON.stringify(draft.expectedResults) !== JSON.stringify(exp.expectedResults);
+  const resetDraft = () =>
+    setDraft({
+      title: exp.title,
+      description: exp.description,
+      method: exp.method,
+      expectedResults: exp.expectedResults,
+      startDate: exp.startDate ? exp.startDate.slice(0, 10) : "",
+      endDate: exp.endDate ? exp.endDate.slice(0, 10) : "",
+    });
+  const saveDraft = () => {
+    updateExperiment(exp.id, {
+      title: draft.title.trim() || exp.title,
+      description: draft.description,
+      method: draft.method,
+      expectedResults: draft.expectedResults,
+      startDate: draft.startDate ? new Date(draft.startDate).toISOString() : undefined,
+      endDate: draft.endDate ? new Date(draft.endDate).toISOString() : undefined,
+    });
+    toast.success("Experimento salvo");
+  };
 
   return (
-    <div className="px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={detailPageClassName}>
+      <div className="mb-4">
         <BackLink href="/experimentos" label="Experimentos" />
-        <button
-          onClick={() => {
-            if (confirm("Excluir este experimento?")) {
-              deleteExperiment(exp.id);
-              router.push("/experimentos");
-            }
-          }}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
-          style={{ borderColor: "var(--danger-border)" }}
-        >
-          <Trash2 size={13} /> Excluir
-        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         <div>
-          <div className="font-mono text-[12px] text-[var(--fg-faint)]">{exp.id}</div>
+          {displayId && <div className="font-mono text-[12px] text-[var(--fg-faint)]">{displayId}</div>}
           <input
             ref={titleRef}
-            value={exp.title}
-            onChange={(e) => updateExperiment(exp.id, { title: e.target.value })}
-            className="mt-1 w-full border-0 bg-transparent text-[24px] font-semibold tracking-tight text-[var(--fg)] outline-none focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
+            value={draft.title}
+            onChange={(e) => setDraft((current) => ({ ...current, title: e.target.value }))}
+            placeholder="Título do experimento"
+            className="mt-1 w-full border-0 bg-transparent text-[28px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
           />
 
           <div className="mt-6">
@@ -92,10 +146,11 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
               Descrição
             </div>
             <Textarea
-              rows={3}
-              value={exp.description}
-              onChange={(e) => updateExperiment(exp.id, { description: e.target.value })}
+              rows={5}
+              value={draft.description}
+              onChange={(e) => setDraft((current) => ({ ...current, description: e.target.value }))}
               placeholder="O que vamos testar e por quê."
+              className="text-[16px]"
             />
           </div>
 
@@ -105,8 +160,8 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
             </div>
             <Textarea
               rows={2}
-              value={exp.method}
-              onChange={(e) => updateExperiment(exp.id, { method: e.target.value })}
+              value={draft.method}
+              onChange={(e) => setDraft((current) => ({ ...current, method: e.target.value }))}
               placeholder="Concierge MVP, A/B test, fake door, entrevistas, etc."
             />
           </div>
@@ -118,11 +173,12 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
               </div>
               <button
                 onClick={() =>
-                  updateExperiment(exp.id, {
-                    expectedResults: [...exp.expectedResults, ""],
-                  })
+                  setDraft((current) => ({
+                    ...current,
+                    expectedResults: [...current.expectedResults, ""],
+                  }))
                 }
-                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] font-semibold text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
               >
                 <Plus size={12} /> Adicionar
@@ -131,11 +187,11 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
             <p className="mb-2 text-[12px] text-[var(--fg-subtle)]">
               Defina critérios mensuráveis que indicam sucesso. Você pode adicionar mais de um.
             </p>
-            {exp.expectedResults.length === 0 ? (
+            {draft.expectedResults.length === 0 ? (
               <p className="text-[13px] text-[var(--fg-faint)]">Nenhum resultado esperado definido.</p>
             ) : (
               <ul className="space-y-1.5">
-                {exp.expectedResults.map((r, i) => (
+                {draft.expectedResults.map((r, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span
                       aria-hidden
@@ -146,17 +202,18 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                       rows={1}
                       value={r}
                       onChange={(e) => {
-                        const next = [...exp.expectedResults];
+                        const next = [...draft.expectedResults];
                         next[i] = e.target.value;
-                        updateExperiment(exp.id, { expectedResults: next });
+                        setDraft((current) => ({ ...current, expectedResults: next }));
                       }}
                       placeholder="Ex.: ≥ 60% dos usuários completam a ação em < 30s"
                     />
                     <button
                       onClick={() =>
-                        updateExperiment(exp.id, {
-                          expectedResults: exp.expectedResults.filter((_, j) => j !== i),
-                        })
+                        setDraft((current) => ({
+                          ...current,
+                          expectedResults: current.expectedResults.filter((_, j) => j !== i),
+                        }))
                       }
                       className="mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[var(--fg-faint)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                       aria-label="Remover resultado esperado"
@@ -168,6 +225,20 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
               </ul>
             )}
           </div>
+
+          <FormActions>
+            <SaveAction disabled={!dirty} onClick={saveDraft} />
+            <CancelAction disabled={!dirty} onClick={resetDraft} />
+            <DeleteAction
+              title="Excluir este experimento?"
+              description={`O experimento "${exp.title}" será removido. Evidências vinculadas deixam de aparecer neste contexto.`}
+              onConfirm={() => {
+                deleteExperiment(exp.id);
+                toast.success("Experimento excluído");
+                router.push("/experimentos");
+              }}
+            />
+          </FormActions>
 
           <div className="mt-6 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--fg-faint)]">
@@ -222,8 +293,13 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
               </div>
               <button
                 onClick={() => {
-                  const ev = createEvidence(exp.productId, exp.id);
-                  router.push(`/evidencias/${ev.id}?new=1`);
+                  void createEvidence(exp.productId, exp.id)
+                    .then((ev) => {
+                      router.push(`/evidencias/${ev.id}?new=1`);
+                    })
+                    .catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível criar a evidência");
+                    });
                 }}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
@@ -245,7 +321,9 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                         style={{ borderColor: "var(--border)" }}
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">{ev.id}</span>
+                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">
+                            {getEvidenceDisplayId(ev) ?? "Evidência"}
+                          </span>
                           <span className="truncate text-[var(--fg)]">{ev.title}</span>
                         </span>
                         <span
@@ -283,7 +361,9 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                 className="block rounded-md border bg-white p-2.5 text-[13px] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
               >
-                <div className="font-mono text-[11px] text-[var(--fg-faint)]">{hyp.id}</div>
+                <div className="font-mono text-[11px] text-[var(--fg-faint)]">
+                  {getHypothesisDisplayId(hyp) ?? "Hipótese"}
+                </div>
                 <div className="mt-0.5 text-[var(--fg)]">{hyp.title}</div>
               </Link>
             ) : (
@@ -294,23 +374,15 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
           <Field label="Início">
             <TextInput
               type="date"
-              value={exp.startDate ? exp.startDate.slice(0, 10) : ""}
-              onChange={(e) =>
-                updateExperiment(exp.id, {
-                  startDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
-                })
-              }
+              value={draft.startDate}
+              onChange={(e) => setDraft((current) => ({ ...current, startDate: e.target.value }))}
             />
           </Field>
           <Field label="Fim">
             <TextInput
               type="date"
-              value={exp.endDate ? exp.endDate.slice(0, 10) : ""}
-              onChange={(e) =>
-                updateExperiment(exp.id, {
-                  endDate: e.target.value ? new Date(e.target.value).toISOString() : undefined,
-                })
-              }
+              value={draft.endDate}
+              onChange={(e) => setDraft((current) => ({ ...current, endDate: e.target.value }))}
             />
           </Field>
           <Field label="Atualizado">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Loader2, AlertCircle } from "lucide-react";
 import { z } from "zod";
@@ -10,10 +9,11 @@ import { BrandMark } from "@/components/auth/brand-mark";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { TextField } from "@/components/auth/text-field";
 import { palette, brand } from "@/lib/theme";
+import { isProductgenApiConfigured, loginToProductgenApi } from "@/lib/productgen-api";
 
 const schema = z.object({
   email: z.string().trim().email().max(255),
-  password: z.string().min(1).max(128),
+  password: z.string().min(12).max(128),
 });
 
 export default function LoginPage() {
@@ -30,19 +30,30 @@ function LoginForm({
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(false);
+    setError(undefined);
     const parsed = schema.safeParse({ email, password });
     if (!parsed.success) {
-      setError(true);
+      setError("Informe email e senha com no mínimo 12 caracteres.");
       return;
     }
+
     setLoading(true);
-    setTimeout(() => router.push("/dashboard"), 600);
+    try {
+      if (isProductgenApiConfigured()) {
+        await loginToProductgenApi(parsed.data);
+      }
+      const next = new URLSearchParams(window.location.search).get("next") || "/dashboard";
+      router.push(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível entrar.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,7 +66,7 @@ function LoginForm({
         Entrar
       </h1>
       <p className="mt-2 text-sm" style={{ color: p.textSecondary }}>
-        Acesse sua plataforma de Product Intelligence.
+        Acesse sua plataforma de Product Intelligence pelo workspace da sua empresa.
       </p>
 
       <div className="mt-8">
@@ -81,45 +92,28 @@ function LoginForm({
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={error}
+          error={Boolean(error)}
           maxLength={255}
         />
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <span
-              className="text-[11px] font-semibold uppercase tracking-wider"
-              style={{ color: p.textSecondary }}
-            >
-              Senha
-            </span>
-            <Link
-              href="/forgot-password"
-              className="text-xs font-semibold"
-              style={{ color: brand.primary }}
-            >
-              Esqueci a senha
-            </Link>
-          </div>
-          <TextField
-            label=""
-            name="password"
-            type="password"
-            icon={Lock}
-            theme={theme}
-            placeholder="••••••••"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            error={error}
-            maxLength={128}
-          />
-        </div>
+        <TextField
+          label="Senha"
+          name="password"
+          type="password"
+          icon={Lock}
+          theme={theme}
+          placeholder="Sua senha"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          error={Boolean(error)}
+          maxLength={128}
+        />
 
         {error && (
           <div className="flex items-center gap-2 text-sm" style={{ color: brand.danger }}>
             <AlertCircle size={16} />
-            Email ou senha incorretos. Tente novamente.
+            {error}
           </div>
         )}
 
@@ -135,14 +129,8 @@ function LoginForm({
       </form>
 
       <p className="mt-8 text-center text-sm" style={{ color: p.textSecondary }}>
-        Ainda não tem conta?{" "}
-        <a href="#" className="font-semibold" style={{ color: brand.primary }}>
-          Criar workspace
-        </a>
+        Use o email e a senha cadastrados no ambiente.
       </p>
     </>
   );
 }
-
-// Hide the password field's "Senha" duplicated label by collapsing empty label spacing
-// (handled inside TextField via empty label rendering — but visually still there).

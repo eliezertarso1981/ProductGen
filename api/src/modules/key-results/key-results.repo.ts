@@ -5,6 +5,7 @@ export interface KeyResult {
   id: string;
   workspace_id: string;
   objective_id: string;
+  code: string;
   title: string;
   metric_type: string | null;
   baseline: number | null;
@@ -16,7 +17,7 @@ export interface KeyResult {
   deleted_at: Date | null;
 }
 
-const SELECT_COLUMNS = `id, workspace_id, objective_id, title, metric_type,
+const SELECT_COLUMNS = `id, workspace_id, objective_id, code, title, metric_type,
   baseline, target, current_value, unit, created_at, updated_at, deleted_at`;
 
 const UPDATABLE_FIELDS = [
@@ -67,14 +68,16 @@ export async function createKeyResult(
   client: PoolClient,
   data: CreateKeyResultInput & { workspace_id: string; objective_id: string },
 ): Promise<KeyResult> {
+  const code = await nextKeyResultCode(client, data.objective_id);
   const result = await client.query<KeyResult>(
     `INSERT INTO key_results (
-       workspace_id, objective_id, title, metric_type, baseline, target, current_value, unit
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       workspace_id, objective_id, code, title, metric_type, baseline, target, current_value, unit
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${SELECT_COLUMNS}`,
     [
       data.workspace_id,
       data.objective_id,
+      code,
       data.title,
       data.metric_type ?? null,
       data.baseline ?? null,
@@ -84,6 +87,22 @@ export async function createKeyResult(
     ],
   );
   return result.rows[0];
+}
+
+async function nextKeyResultCode(client: PoolClient, objectiveId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `key-results:${objectiveId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM key_results
+     WHERE objective_id = $1 AND code ~ '^KR-[0-9]+$'
+     ORDER BY (substring(code from 4))::int DESC
+     LIMIT 1`,
+    [objectiveId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `KR-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateKeyResult(

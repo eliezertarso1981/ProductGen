@@ -10,6 +10,7 @@ let productId: string;
 let pillarId: string;
 let objectiveId: string;
 let keyResultId: string;
+let painId: string;
 
 beforeAll(async () => {
   app = buildApp();
@@ -26,103 +27,177 @@ afterAll(async () => {
   await adminPool.end();
 });
 
-describe('P2 Strategy — pilares, objetivos e key results', () => {
-  it('CRUD de strategic_pillars', async () => {
-    const create = await app.inject({
+describe('Strategy / OKRs', () => {
+  it('cria pilar estratégico com código humano', async () => {
+    const res = await app.inject({
       method: 'POST',
       url: `/products/${productId}/strategic-pillars`,
       headers: authHeader(token),
       payload: {
-        name: 'Retenção',
-        description: 'Foco em usuários ativos',
-        color: '#3366FF',
-        position: 1,
+        name: 'Eficiência operacional',
+        description: 'Reduzir trabalho manual do PM',
+        color: '#2563EB',
       },
     });
-    expect(create.statusCode).toBe(201);
-    const pillar = JSON.parse(create.body);
-    pillarId = pillar.id;
-    expect(pillar.name).toBe('Retenção');
 
-    const list = await app.inject({
-      method: 'GET',
-      url: `/products/${productId}/strategic-pillars`,
-      headers: authHeader(token),
-    });
-    expect(list.statusCode).toBe(200);
-    expect(JSON.parse(list.body).length).toBeGreaterThanOrEqual(1);
-
-    const patch = await app.inject({
-      method: 'PATCH',
-      url: `/strategic-pillars/${pillarId}`,
-      headers: authHeader(token),
-      payload: { name: 'Retenção e engajamento' },
-    });
-    expect(patch.statusCode).toBe(200);
-    expect(JSON.parse(patch.body).name).toBe('Retenção e engajamento');
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.code).toMatch(/^PL-\d{2,}$/);
+    expect(body.name).toBe('Eficiência operacional');
+    pillarId = body.id;
   });
 
-  it('CRUD de objectives com transição de status', async () => {
-    const create = await app.inject({
+  it('cria objetivo vinculado ao pilar com código OKR', async () => {
+    const res = await app.inject({
       method: 'POST',
       url: `/products/${productId}/objectives`,
       headers: authHeader(token),
       payload: {
-        title: 'Aumentar retenção no Q3',
-        description: 'OKR trimestral',
-        horizon_start: '2025-07-01',
-        horizon_end: '2025-09-30',
+        title: 'Aumentar velocidade de aprendizado',
+        description: 'Diminuir o tempo entre hipótese e evidência',
+        horizon_start: '2026-04-01',
+        horizon_end: '2026-06-30',
+        pillar_id: pillarId,
       },
     });
-    expect(create.statusCode).toBe(201);
-    const objective = JSON.parse(create.body);
-    objectiveId = objective.id;
-    expect(objective.status).toBe('draft');
 
-    const activate = await app.inject({
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.code).toMatch(/^OKR-\d{2,}$/);
+    expect(body.pillar_id).toBe(pillarId);
+    expect(body.status).toBe('draft');
+    objectiveId = body.id;
+  });
+
+  it('lista objetivos com o vínculo do pilar', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/products/${productId}/objectives`,
+      headers: authHeader(token),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    const objective = body.find((item: { id: string }) => item.id === objectiveId);
+    expect(objective.code).toMatch(/^OKR-\d{2,}$/);
+    expect(objective.pillar_id).toBe(pillarId);
+  });
+
+  it('cria key result com código humano por objetivo', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/objectives/${objectiveId}/key-results`,
+      headers: authHeader(token),
+      payload: {
+        title: 'Reduzir ciclo de validação',
+        metric_type: 'dias',
+        baseline: 14,
+        target: 5,
+        current_value: 10,
+        unit: 'd',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.code).toMatch(/^KR-\d{2,}$/);
+    keyResultId = body.id;
+  });
+
+  it('cria, lista e remove vínculos de dor com pilar e OKR', async () => {
+    const pain = await app.inject({
+      method: 'POST',
+      url: `/products/${productId}/pains`,
+      headers: authHeader(token),
+      payload: {
+        title: 'Dor conectada à estratégia',
+        description: 'Usada para validar vínculos cross-domain',
+        severity: 4,
+      },
+    });
+    expect(pain.statusCode).toBe(201);
+    painId = JSON.parse(pain.body).id;
+
+    const linkPillar = await app.inject({
+      method: 'POST',
+      url: `/pains/${painId}/strategic-pillars/${pillarId}`,
+      headers: authHeader(token),
+    });
+    expect(linkPillar.statusCode).toBe(201);
+    expect(JSON.parse(linkPillar.body)).toEqual({ pain_id: painId, pillar_id: pillarId });
+
+    const linkObjective = await app.inject({
+      method: 'POST',
+      url: `/pains/${painId}/objectives/${objectiveId}`,
+      headers: authHeader(token),
+    });
+    expect(linkObjective.statusCode).toBe(201);
+    expect(JSON.parse(linkObjective.body)).toEqual({ pain_id: painId, objective_id: objectiveId });
+
+    const pillars = await app.inject({
+      method: 'GET',
+      url: `/pains/${painId}/strategic-pillars`,
+      headers: authHeader(token),
+    });
+    expect(pillars.statusCode).toBe(200);
+    expect(JSON.parse(pillars.body)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: pillarId, code: expect.stringMatching(/^PL-\d{2,}$/) }),
+      ]),
+    );
+
+    const objectives = await app.inject({
+      method: 'GET',
+      url: `/pains/${painId}/objectives`,
+      headers: authHeader(token),
+    });
+    expect(objectives.statusCode).toBe(200);
+    expect(JSON.parse(objectives.body)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: objectiveId, code: expect.stringMatching(/^OKR-\d{2,}$/) }),
+      ]),
+    );
+
+    const unlinkObjective = await app.inject({
+      method: 'DELETE',
+      url: `/pains/${painId}/objectives/${objectiveId}`,
+      headers: authHeader(token),
+    });
+    expect(unlinkObjective.statusCode).toBe(204);
+
+    const unlinkPillar = await app.inject({
+      method: 'DELETE',
+      url: `/pains/${painId}/strategic-pillars/${pillarId}`,
+      headers: authHeader(token),
+    });
+    expect(unlinkPillar.statusCode).toBe(204);
+
+    const emptyPillars = await app.inject({
+      method: 'GET',
+      url: `/pains/${painId}/strategic-pillars`,
+      headers: authHeader(token),
+    });
+    expect(JSON.parse(emptyPillars.body)).toHaveLength(0);
+  });
+
+  it('atualiza key result e status do objetivo', async () => {
+    const kr = await app.inject({
+      method: 'PATCH',
+      url: `/key-results/${keyResultId}`,
+      headers: authHeader(token),
+      payload: { current_value: 7 },
+    });
+    expect(kr.statusCode).toBe(200);
+    expect(JSON.parse(kr.body).current_value).toBe(7);
+
+    const objective = await app.inject({
       method: 'PATCH',
       url: `/objectives/${objectiveId}/status`,
       headers: authHeader(token),
       payload: { status: 'active' },
     });
-    expect(activate.statusCode).toBe(200);
-    expect(JSON.parse(activate.body).status).toBe('active');
-  });
-
-  it('CRUD de key_results aninhados em objective', async () => {
-    const create = await app.inject({
-      method: 'POST',
-      url: `/objectives/${objectiveId}/key-results`,
-      headers: authHeader(token),
-      payload: {
-        title: 'WAU +15%',
-        metric_type: 'growth',
-        baseline: 1000,
-        target: 1150,
-        unit: 'users',
-      },
-    });
-    expect(create.statusCode).toBe(201);
-    const kr = JSON.parse(create.body);
-    keyResultId = kr.id;
-    expect(kr.objective_id).toBe(objectiveId);
-
-    const list = await app.inject({
-      method: 'GET',
-      url: `/objectives/${objectiveId}/key-results`,
-      headers: authHeader(token),
-    });
-    expect(list.statusCode).toBe(200);
-    expect(JSON.parse(list.body).length).toBe(1);
-
-    const patch = await app.inject({
-      method: 'PATCH',
-      url: `/key-results/${keyResultId}`,
-      headers: authHeader(token),
-      payload: { current_value: 1050 },
-    });
-    expect(patch.statusCode).toBe(200);
-    expect(JSON.parse(patch.body).current_value).toBe(1050);
+    expect(objective.statusCode).toBe(200);
+    expect(JSON.parse(objective.body).status).toBe('active');
   });
 
   it('soft delete de pillar, objective e key result', async () => {

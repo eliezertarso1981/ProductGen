@@ -32,6 +32,8 @@ export interface PainComment {
 export interface Pain {
   id: string;
   productId: string;
+  code?: string;
+  apiStatus?: string;
   title: string;
   description: string;
   status: PainStatus;
@@ -74,6 +76,15 @@ export const statusConfig: Record<PainStatus, { label: string; dot: string; acce
 };
 
 export const boardColumns: PainStatus[] = ["backlog", "em_validacao", "validada", "descartada"];
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function getPainDisplayId(painOrId: Pick<Pain, "id" | "code"> | string): string | null {
+  if (typeof painOrId === "string") {
+    return UUID_PATTERN.test(painOrId) ? null : painOrId;
+  }
+  return painOrId.code ?? (UUID_PATTERN.test(painOrId.id) ? null : painOrId.id);
+}
 
 export function severityColor(level: 1 | 2 | 3 | 4 | 5): string {
   if (level <= 2) return "var(--success)";

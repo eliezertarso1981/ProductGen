@@ -1,4 +1,6 @@
 import Fastify from 'fastify';
+import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
 import { config } from './config/env';
 import { AppError } from './shared/errors';
@@ -10,6 +12,8 @@ import { roadmapRoutes } from './modules/roadmap/roadmap.routes';
 import { analyticsRoutes } from './modules/analytics/analytics.routes';
 import { evidencesRoutes } from './modules/evidences/evidences.routes';
 import { workspaceMembersRoutes } from './modules/workspace-members/workspace-members.routes';
+import { workspaceTeamsRoutes } from './modules/workspace-teams/workspace-teams.routes';
+import { personasRoutes } from './modules/personas/personas.routes';
 import { productsRoutes } from './modules/products/products.routes';
 import { experimentsRoutes } from './modules/experiments/experiments.routes';
 import { insightsRoutes } from './modules/insights/insights.routes';
@@ -32,13 +36,25 @@ export function buildApp() {
   });
 
   registerOpenApiSchemas(app);
+  app.register(cors, {
+    origin: config.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+  app.register(cookie, {
+    secret: config.COOKIE_SECRET,
+  });
   app.register(sensible);
   registerSwagger(app);
 
   app.setErrorHandler((err, _request, reply) => {
     if (err instanceof AppError) {
       return reply.status(err.statusCode).send({
-        error: { code: err.code, message: err.message },
+        error: {
+          code: err.code,
+          message: err.message,
+          ...(hasErrorDetails(err) ? { details: err.details } : {}),
+        },
       });
     }
     if (isFastifyValidationError(err)) {
@@ -59,6 +75,8 @@ export function buildApp() {
   app.register(analyticsRoutes);
   app.register(evidencesRoutes);
   app.register(workspaceMembersRoutes);
+  app.register(workspaceTeamsRoutes);
+  app.register(personasRoutes);
   app.register(productsRoutes);
   app.register(experimentsRoutes);
   app.register(insightsRoutes);
@@ -83,6 +101,10 @@ export function buildApp() {
   });
 
   return app;
+}
+
+function hasErrorDetails(err: AppError): err is AppError & { details: unknown } {
+  return 'details' in err;
 }
 
 function isFastifyValidationError(err: unknown): err is { message: string; validation: unknown } {

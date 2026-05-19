@@ -7,6 +7,8 @@ import {
   updateWorkspaceMemberSchema,
 } from './workspace-members.schemas';
 import * as service from './workspace-members.service';
+import { pool } from '../../db/pool';
+import { assertWorkspacePermission } from '../../auth/permissions';
 
 export async function workspaceMembersRoutes(app: FastifyInstance) {
   // GET /workspaces/:workspace_id/members
@@ -16,6 +18,7 @@ export async function workspaceMembersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id } = request.params;
       const { user_id } = request.user;
+      await assertWorkspacePermission(pool, request, workspace_id, 'members.read');
 
       const members = await service.listMembers(workspace_id, user_id);
       return reply.send(members);
@@ -29,6 +32,7 @@ export async function workspaceMembersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id } = request.params;
       const { user_id } = request.user;
+      await assertWorkspacePermission(pool, request, workspace_id, 'members.invite');
 
       const parsed = createWorkspaceMemberSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -47,6 +51,7 @@ export async function workspaceMembersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id, user_id } = request.params;
       const { user_id: actorId } = request.user;
+      await assertWorkspacePermission(pool, request, workspace_id, 'members.read');
 
       const member = await service.getMember(workspace_id, actorId, user_id);
       return reply.send(member);
@@ -60,6 +65,7 @@ export async function workspaceMembersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id, user_id } = request.params;
       const { user_id: actorId } = request.user;
+      await assertWorkspacePermission(pool, request, workspace_id, 'members.update_role');
 
       const parsed = updateWorkspaceMemberSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -78,6 +84,7 @@ export async function workspaceMembersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { workspace_id, user_id } = request.params;
       const { user_id: actorId } = request.user;
+      await assertWorkspacePermission(pool, request, workspace_id, 'members.remove');
 
       await service.deleteMember(workspace_id, actorId, user_id);
       return reply.status(204).send();

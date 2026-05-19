@@ -4,11 +4,25 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Trash2, Plus, Check } from "lucide-react";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ArrowLeft, Plus, Check } from "lucide-react";
+import {
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
+  FormActions,
+  SaveAction,
+} from "@/components/shared/crud-ui";
 import { useStrategy } from "@/lib/strategy-store";
 import { useDores } from "@/lib/dores-store";
-import { formatPeriod, okrStatusConfig, pillarColors } from "@/lib/strategy-data";
+import { getPainDisplayId } from "@/lib/dores-data";
+import {
+  formatPeriod,
+  getOKRDisplayId,
+  getPillarDisplayId,
+  okrStatusConfig,
+  pillarColors,
+  type Period,
+} from "@/lib/strategy-data";
 import { PeriodPicker } from "@/components/strategy/period-picker";
 
 export default function PillarDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,7 +35,28 @@ export default function PillarDetailPage({ params }: { params: Promise<{ id: str
 
   const pillar = getPillar(id);
   const titleRef = useRef<HTMLInputElement>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [draft, setDraft] = useState<{
+    name: string;
+    description: string;
+    period: Period;
+    color: string;
+  }>({
+    name: "",
+    description: "",
+    period: { type: "annual", year: new Date().getFullYear() },
+    color: "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!pillar) return;
+    setDraft({
+      name: pillar.name,
+      description: pillar.description,
+      period: pillar.period,
+      color: pillar.color,
+    });
+  }, [pillar]);
 
   useEffect(() => {
     if (isNew && titleRef.current) {
@@ -44,65 +79,98 @@ export default function PillarDetailPage({ params }: { params: Promise<{ id: str
 
   const okrs = okrsByPillar(pillar.id);
   const linkedPains = pains.filter((p) => p.pillarId === pillar.id);
+  const dirty =
+    draft.name !== pillar.name ||
+    draft.description !== pillar.description ||
+    draft.period !== pillar.period ||
+    draft.color !== pillar.color;
+  const resetDraft = () =>
+    setDraft({
+      name: pillar.name,
+      description: pillar.description,
+      period: pillar.period,
+      color: pillar.color,
+    });
+  const saveDraft = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await updatePillar(pillar.id, {
+        name: draft.name.trim() || pillar.name,
+        description: draft.description,
+        period: draft.period,
+        color: draft.color,
+      });
+      toast.success("Pilar salvo com sucesso");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar o pilar");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={detailPageClassName}>
+      <div className="mb-4">
         <Link href="/pilares" className="inline-flex items-center gap-1.5 text-[13px] text-[var(--fg-subtle)] hover:text-[var(--fg)]">
           <ArrowLeft size={14} /> Pilares
         </Link>
-        <button
-          onClick={() => setConfirm(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"
-          style={{ borderColor: "var(--danger-border)" }}
-        >
-          <Trash2 size={13} /> Excluir
-        </button>
       </div>
-
-      <ConfirmDialog
-        open={confirm}
-        title="Excluir este pilar?"
-        description="OKRs vinculados perderão a referência. Esta ação não pode ser desfeita."
-        confirmLabel="Excluir"
-        destructive
-        onCancel={() => setConfirm(false)}
-        onConfirm={() => {
-          deletePillar(pillar.id);
-          toast.success("Pilar excluído");
-          router.push("/pilares");
-        }}
-      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         <div>
-          <div className="font-mono text-[12px] text-[var(--fg-faint)]">{pillar.id}</div>
+          {getPillarDisplayId(pillar) && (
+            <div className="font-mono text-[12px] text-[var(--fg-faint)]">
+              {getPillarDisplayId(pillar)}
+            </div>
+          )}
           <input
             ref={titleRef}
-            value={pillar.name}
-            onChange={(e) => updatePillar(pillar.id, { name: e.target.value })}
+            value={draft.name}
+            onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
             placeholder="Nome do pilar"
-            className="mt-1 w-full border-0 bg-transparent text-[24px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--border-strong)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
+            className="mt-1 w-full border-0 bg-transparent text-[28px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
           />
 
           <Section title="Descrição">
             <textarea
-              value={pillar.description}
-              onChange={(e) => updatePillar(pillar.id, { description: e.target.value })}
+              value={draft.description}
+              onChange={(e) => setDraft((current) => ({ ...current, description: e.target.value }))}
               placeholder="Por que este pilar existe? Que tipo de problema endereça?"
-              rows={4}
-              className="w-full rounded-md border bg-white px-3 py-2 text-[14px] text-[var(--fg)] outline-none focus:border-[var(--primary)]"
+              rows={6}
+              className="w-full rounded-md border bg-white px-3.5 py-2.5 text-[16px] leading-6 text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:border-[var(--primary)]"
               style={{ borderColor: "var(--border)" }}
             />
           </Section>
+
+          <FormActions>
+            <SaveAction disabled={!dirty || saving} onClick={saveDraft}>
+              {saving ? "Salvando..." : "Salvar"}
+            </SaveAction>
+            <CancelAction disabled={!dirty} onClick={resetDraft} />
+            <DeleteAction
+              title="Excluir este pilar?"
+              description="OKRs vinculados perderão a referência. Esta ação não pode ser desfeita."
+              onConfirm={() => {
+                deletePillar(pillar.id);
+                toast.success("Pilar excluído");
+                router.push("/pilares");
+              }}
+            />
+          </FormActions>
 
           <Section
             title={`OKRs vinculados (${okrs.length})`}
             action={
               <button
                 onClick={() => {
-                  const o = createOKR(pillar.productId, pillar.id, pillar.period);
-                  router.push(`/okrs/${o.id}?new=1`);
+                  void createOKR(pillar.productId, pillar.id, draft.period)
+                    .then((o) => {
+                      router.push(`/okrs/${o.id}?new=1`);
+                    })
+                    .catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível criar o OKR");
+                    });
                 }}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
@@ -125,7 +193,9 @@ export default function PillarDetailPage({ params }: { params: Promise<{ id: str
                         style={{ borderColor: "var(--border)" }}
                       >
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">{o.id}</span>
+                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">
+                            {getOKRDisplayId(o) ?? "OKR"}
+                          </span>
                           <span className="truncate text-[var(--fg)]">{o.objective}</span>
                         </span>
                         <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-[var(--fg-muted)]">
@@ -157,7 +227,11 @@ export default function PillarDetailPage({ params }: { params: Promise<{ id: str
                       style={{ borderColor: "var(--border)" }}
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="font-mono text-[11px] text-[var(--fg-faint)]">{p.id}</span>
+                        {getPainDisplayId(p) && (
+                          <span className="font-mono text-[11px] text-[var(--fg-faint)]">
+                            {getPainDisplayId(p)}
+                          </span>
+                        )}
                         <span className="truncate text-[var(--fg)]">{p.title}</span>
                       </span>
                     </Link>
@@ -170,16 +244,16 @@ export default function PillarDetailPage({ params }: { params: Promise<{ id: str
 
         <aside className="space-y-5">
           <Field label="Período">
-            <PeriodPicker value={pillar.period} onChange={(period) => updatePillar(pillar.id, { period })} />
+            <PeriodPicker value={draft.period} onChange={(period) => setDraft((current) => ({ ...current, period }))} />
           </Field>
           <Field label="Cor">
             <div className="flex flex-wrap gap-1.5">
               {pillarColors.map((c) => {
-                const active = c.value === pillar.color;
+                const active = c.value === draft.color;
                 return (
                   <button
                     key={c.id}
-                    onClick={() => updatePillar(pillar.id, { color: c.value })}
+                    onClick={() => setDraft((current) => ({ ...current, color: c.value }))}
                     aria-label={c.label}
                     className="flex h-7 w-7 items-center justify-center rounded-md border"
                     style={{

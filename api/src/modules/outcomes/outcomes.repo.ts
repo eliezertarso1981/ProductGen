@@ -9,6 +9,7 @@ export interface Outcome {
   id: string;
   workspace_id: string;
   roadmap_item_id: string;
+  code: string;
   key_result_id: string | null;
   pain_id: string | null;
   hypothesized_impact: string;
@@ -24,7 +25,7 @@ export interface Outcome {
   deleted_at: Date | null;
 }
 
-const SELECT_COLUMNS = `id, workspace_id, roadmap_item_id, key_result_id, pain_id,
+const SELECT_COLUMNS = `id, workspace_id, roadmap_item_id, code, key_result_id, pain_id,
   hypothesized_impact, measurement_window_days, status,
   measurement_started_at, measurement_ended_at,
   baseline_value, final_value, conclusion,
@@ -41,12 +42,20 @@ const UPDATABLE_FIELDS = [
 ] as const;
 type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
 
+function normalize(row: Outcome): Outcome {
+  return {
+    ...row,
+    baseline_value: row.baseline_value != null ? Number(row.baseline_value) : null,
+    final_value: row.final_value != null ? Number(row.final_value) : null,
+  };
+}
+
 export async function findRoadmapItemWorkspace(
   client: PoolClient,
   roadmapItemId: string,
-): Promise<{ id: string } | null> {
-  const result = await client.query<{ id: string }>(
-    `SELECT id FROM roadmap_items WHERE id = $1 AND deleted_at IS NULL`,
+): Promise<{ id: string; product_id: string } | null> {
+  const result = await client.query<{ id: string; product_id: string }>(
+    `SELECT id, product_id FROM roadmap_items WHERE id = $1 AND deleted_at IS NULL`,
     [roadmapItemId],
   );
   return result.rows[0] ?? null;
@@ -63,7 +72,7 @@ export async function findOutcomesByRoadmapItem(
      ORDER BY created_at DESC`,
     [roadmapItemId],
   );
-  return result.rows;
+  return result.rows.map(normalize);
 }
 
 export async function findOutcomeById(client: PoolClient, id: string): Promise<Outcome | null> {
@@ -72,22 +81,24 @@ export async function findOutcomeById(client: PoolClient, id: string): Promise<O
      FROM outcomes WHERE id = $1 AND deleted_at IS NULL`,
     [id],
   );
-  return result.rows[0] ?? null;
+  return result.rows[0] ? normalize(result.rows[0]) : null;
 }
 
 export async function createOutcome(
   client: PoolClient,
-  data: CreateOutcomeInput & { workspace_id: string; roadmap_item_id: string },
+  data: CreateOutcomeInput & { workspace_id: string; roadmap_item_id: string; product_id: string },
 ): Promise<Outcome> {
+  const code = await nextOutcomeCode(client, data.product_id);
   const result = await client.query<Outcome>(
     `INSERT INTO outcomes (
-       workspace_id, roadmap_item_id, key_result_id, pain_id,
+       workspace_id, roadmap_item_id, code, key_result_id, pain_id,
        hypothesized_impact, measurement_window_days, baseline_value
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING ${SELECT_COLUMNS}`,
     [
       data.workspace_id,
       data.roadmap_item_id,
+      code,
       data.key_result_id ?? null,
       data.pain_id ?? null,
       data.hypothesized_impact,
@@ -95,7 +106,24 @@ export async function createOutcome(
       data.baseline_value ?? null,
     ],
   );
-  return result.rows[0];
+  return normalize(result.rows[0]);
+}
+
+async function nextOutcomeCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`outcomes:${productId}:code`]);
+  const result = await client.query<{ code: string }>(
+    `SELECT o.code
+     FROM outcomes o
+     JOIN roadmap_items ri ON ri.id = o.roadmap_item_id
+     WHERE ri.product_id = $1
+       AND o.code ~ '^OC-[0-9]+$'
+     ORDER BY (substring(o.code from 4))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(3), 10) + 1 : 1;
+  return `OC-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateOutcome(
@@ -118,7 +146,7 @@ export async function updateOutcome(
      RETURNING ${SELECT_COLUMNS}`,
     [...values, id],
   );
-  return result.rows[0] ?? null;
+  return result.rows[0] ? normalize(result.rows[0]) : null;
 }
 
 export async function updateOutcomeStatus(
@@ -132,7 +160,7 @@ export async function updateOutcomeStatus(
      RETURNING ${SELECT_COLUMNS}`,
     [status, id],
   );
-  return result.rows[0] ?? null;
+  return result.rows[0] ? normalize(result.rows[0]) : null;
 }
 
 export async function softDeleteOutcome(client: PoolClient, id: string): Promise<boolean> {

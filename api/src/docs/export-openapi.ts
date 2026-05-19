@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { buildApp } from '../app';
+import { generateKeyPairSync } from 'node:crypto';
 
-type AppWithSwagger = ReturnType<typeof buildApp> & {
+type BuildApp = typeof import('../app').buildApp;
+type AppWithSwagger = ReturnType<BuildApp> & {
   swagger: () => unknown;
 };
 
@@ -12,6 +13,8 @@ const outputPath = resolve(
 );
 
 async function main() {
+  ensureEnvForDocsExport();
+  const { buildApp } = await import('../app');
   const app = buildApp() as AppWithSwagger;
 
   try {
@@ -25,6 +28,26 @@ async function main() {
   } finally {
     await app.close();
   }
+}
+
+function ensureEnvForDocsExport() {
+  ensureJwtKeysForDocsExport();
+
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'postgresql://openapi:openapi@127.0.0.1:5432/productgen_openapi';
+  }
+
+  if (!process.env.COOKIE_SECRET) {
+    process.env.COOKIE_SECRET = 'openapi-docs-check-cookie-secret-min-32-chars';
+  }
+}
+
+function ensureJwtKeysForDocsExport() {
+  if (process.env.JWT_PRIVATE_KEY && process.env.JWT_PUBLIC_KEY) return;
+
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  process.env.JWT_PRIVATE_KEY = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  process.env.JWT_PUBLIC_KEY = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 }
 
 main().catch((err) => {

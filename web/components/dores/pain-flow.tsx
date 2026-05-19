@@ -5,12 +5,13 @@ import Link from "next/link";
 import { AlertCircle, FlaskConical, Beaker, Map, ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Pain } from "@/lib/dores-data";
-import { statusConfig as painStatusConfig } from "@/lib/dores-data";
+import { getPainDisplayId, statusConfig as painStatusConfig } from "@/lib/dores-data";
 import { useDiscovery } from "@/lib/discovery-store";
 import {
   hypothesisStatusConfig,
   experimentStatusConfig,
   roadmapStatusConfig,
+  getExperimentDisplayId,
 } from "@/lib/discovery-data";
 import { SeverityDots } from "./severity-dots";
 
@@ -61,7 +62,7 @@ export function PainFlow({ pains }: Props) {
           >
             {pains.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.id} — {p.title}
+                {getPainDisplayId(p) ? `${getPainDisplayId(p)} — ${p.title}` : p.title}
               </option>
             ))}
           </select>
@@ -84,7 +85,7 @@ export function PainFlow({ pains }: Props) {
             href={`/dores/${pain.id}`}
             icon={AlertCircle}
             iconColor="var(--danger)"
-            id={pain.id}
+            id={getPainDisplayId(pain) ?? "Dor"}
             title={pain.title}
             statusLabel={painStatusConfig[pain.status].label}
             statusColor={painStatusConfig[pain.status].dot}
@@ -114,7 +115,7 @@ export function PainFlow({ pains }: Props) {
                         href={`/hipoteses/${h.id}`}
                         icon={FlaskConical}
                         iconColor="var(--purple)"
-                        id={h.id}
+                        id={h.id.startsWith("HP-") ? h.id : "Hipótese"}
                         title={h.title}
                         statusLabel={hypothesisStatusConfig[h.status].label}
                         statusColor={hypothesisStatusConfig[h.status].dot}
@@ -139,7 +140,7 @@ export function PainFlow({ pains }: Props) {
                                   href={`/experimentos/${e.id}`}
                                   icon={Beaker}
                                   iconColor="var(--cyan)"
-                                  id={e.id}
+                                  id={getExperimentDisplayId(e) ?? "Experimento"}
                                   title={e.title}
                                   statusLabel={experimentStatusConfig[e.status].label}
                                   statusColor={experimentStatusConfig[e.status].dot}

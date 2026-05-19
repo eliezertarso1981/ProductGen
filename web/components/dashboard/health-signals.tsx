@@ -1,7 +1,17 @@
-import { healthSignals } from "@/lib/mock-data";
+import type { ApiDashboardAnalytics } from "@/lib/productgen-api";
 
-export function HealthSignals() {
-  const inv = healthSignals.invalidationRate;
+interface HealthSignalsProps {
+  health: ApiDashboardAnalytics["health"];
+}
+
+function percent(value: number | null) {
+  return value ?? 0;
+}
+
+export function HealthSignals({ health }: HealthSignalsProps) {
+  const invalidationRate = percent(health.hypothesis_invalidation_rate);
+  const avgPainAge = health.avg_investigating_pain_age_days ?? 0;
+  const strategicCoverage = percent(health.roadmap_strategic_coverage_rate);
 
   return (
     <div
@@ -12,7 +22,7 @@ export function HealthSignals() {
         Sinais de saúde do discovery
       </h2>
       <p className="mt-0.5 text-sm" style={{ color: "var(--fg-subtle)" }}>
-        Métricas-chave da saúde do trabalho de produto
+        Métricas-chave calculadas a partir do fluxo real de produto
       </p>
 
       <div className="mt-6 grid gap-8 md:grid-cols-3">
@@ -24,24 +34,24 @@ export function HealthSignals() {
             Taxa de invalidação de hipóteses
           </div>
           <div className="mt-3 text-4xl font-semibold" style={{ color: "var(--fg)" }}>
-            {inv.value}%
+            {invalidationRate}%
           </div>
           <div className="mt-4">
             <div
               className="relative h-2 rounded-full overflow-hidden flex"
               style={{ backgroundColor: "var(--border)" }}
             >
-              <div style={{ width: `${inv.healthyMin}%`, backgroundColor: "var(--danger-border)" }} />
+              <div style={{ width: "10%", backgroundColor: "var(--danger-border)" }} />
               <div
                 style={{
-                  width: `${inv.healthyMax - inv.healthyMin}%`,
+                  width: "50%",
                   backgroundColor: "var(--success-border)",
                 }}
               />
-              <div style={{ width: `${100 - inv.healthyMax}%`, backgroundColor: "var(--danger-border)" }} />
+              <div style={{ width: "40%", backgroundColor: "var(--danger-border)" }} />
               <div
                 className="absolute top-1/2 h-3.5 w-0.5 -translate-y-1/2"
-                style={{ left: `${inv.value}%`, backgroundColor: "var(--fg)" }}
+                style={{ left: `${invalidationRate}%`, backgroundColor: "var(--fg)" }}
               />
             </div>
             <div className="mt-1 flex justify-between text-[10px]" style={{ color: "var(--fg-faint)" }}>
@@ -52,7 +62,7 @@ export function HealthSignals() {
             </div>
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--fg-subtle)" }}>
-            {inv.note}
+            Faixa saudável de referência: entre 10% e 60% de hipóteses decididas.
           </p>
         </div>
 
@@ -64,13 +74,13 @@ export function HealthSignals() {
             Idade média — dores em investigação
           </div>
           <div className="mt-3 text-4xl font-semibold" style={{ color: "var(--warn)" }}>
-            {healthSignals.avgPainAge.value} {healthSignals.avgPainAge.unit}
+            {avgPainAge} dias
           </div>
           <div className="mt-4 text-xs font-semibold" style={{ color: "var(--success)" }}>
-            ↗ {healthSignals.avgPainAge.delta}
+            Dores atualmente em investigação
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--warn-fg)" }}>
-            {healthSignals.avgPainAge.note}
+            Acima de 14 dias pode indicar gargalo de triagem ou decisão.
           </p>
         </div>
 
@@ -82,7 +92,7 @@ export function HealthSignals() {
             Cobertura estratégica
           </div>
           <div className="mt-3 text-4xl font-semibold" style={{ color: "var(--fg)" }}>
-            {healthSignals.strategicCoverage.value}%
+            {strategicCoverage}%
           </div>
           <div className="mt-4">
             <div
@@ -92,7 +102,7 @@ export function HealthSignals() {
               <div
                 className="h-full"
                 style={{
-                  width: `${healthSignals.strategicCoverage.value}%`,
+                  width: `${strategicCoverage}%`,
                   backgroundColor: "var(--primary)",
                 }}
               />
@@ -103,7 +113,7 @@ export function HealthSignals() {
             </div>
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--fg-subtle)" }}>
-            {healthSignals.strategicCoverage.note}
+            Itens de roadmap com vínculo estratégico ou hipótese relacionada.
           </p>
         </div>
       </div>

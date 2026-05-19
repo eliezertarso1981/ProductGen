@@ -76,12 +76,21 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   });
 
   app.addSchema({
+    $id: 'DashboardFilterQuery',
+    type: 'object',
+    properties: {
+      product_id: uuid,
+      period: { type: 'string', enum: ['today', 'week', 'month', 'quarter', 'year'] },
+    },
+  });
+
+  app.addSchema({
     $id: 'LoginRequest',
     type: 'object',
-    required: ['email', 'workspace_slug'],
+    required: ['email', 'password'],
     properties: {
       email: { type: 'string', format: 'email' },
-      workspace_slug: { type: 'string' },
+      password: { type: 'string', minLength: 12, maxLength: 128 },
     },
   });
 
@@ -102,10 +111,25 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       },
       workspace: {
         type: 'object',
-        required: ['id', 'role'],
+        required: ['id', 'slug', 'name', 'role'],
         properties: {
           id: uuid,
-          role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer'] },
+          slug: { type: 'string' },
+          name: { type: 'string' },
+          role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
+        },
+      },
+      workspaces: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'slug', 'name', 'role'],
+          properties: {
+            id: uuid,
+            slug: { type: 'string' },
+            name: { type: 'string' },
+            role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
+          },
         },
       },
     },
@@ -118,6 +142,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       'id',
       'workspace_id',
       'product_id',
+      'code',
       'title',
       'description',
       'status',
@@ -133,6 +158,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^PN-[0-9]+$' },
       parent_pain_id: nullableUuid,
       root_pain_id: nullableUuid,
       title: { type: 'string' },
@@ -170,6 +196,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     minProperties: 1,
     properties: {
       title: { type: 'string', minLength: 3, maxLength: 200 },
+      product_id: uuid,
       description: nullableString,
       severity: { type: 'integer', minimum: 1, maximum: 5, nullable: true },
       reach_estimate: { type: 'integer', minimum: 0, nullable: true },
@@ -194,6 +221,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       'id',
       'workspace_id',
       'product_id',
+      'code',
       'title',
       'if_clause',
       'then_clause',
@@ -212,6 +240,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^HP-[0-9]+$' },
       title: { type: 'string' },
       if_clause: { type: 'string' },
       then_clause: { type: 'string' },
@@ -280,6 +309,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       'id',
       'workspace_id',
       'product_id',
+      'code',
       'title',
       'content',
       'source',
@@ -297,6 +327,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^EV-[0-9]+$' },
       title: { type: 'string' },
       content: { type: 'string' },
       source: { type: 'string', enum: EVIDENCE_SOURCES },
@@ -358,6 +389,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       'id',
       'workspace_id',
       'product_id',
+      'code',
       'parent_id',
       'path',
       'type',
@@ -388,6 +420,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^RM-[0-9]+$' },
       parent_id: nullableUuid,
       path: nullableString,
       type: { type: 'string', enum: DELIVERY_TYPES },
@@ -483,6 +516,139 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   });
 
   app.addSchema({
+    $id: 'AnalyticsStatusCount',
+    type: 'object',
+    required: ['status', 'count'],
+    properties: {
+      status: { type: 'string' },
+      count: { type: 'integer' },
+    },
+  });
+
+  app.addSchema({
+    $id: 'DashboardAnalytics',
+    type: 'object',
+    required: [
+      'product_id',
+      'generated_at',
+      'totals',
+      'evidences_by_status',
+      'pains_by_status',
+      'hypotheses_by_status',
+      'experiments_by_status',
+      'experiment_results',
+      'roadmap_by_status',
+      'outcomes_by_status',
+      'objectives_by_status',
+      'discovery_funnel',
+      'health',
+      'upcoming_measurements',
+      'recent_activity',
+    ],
+    properties: {
+      product_id: nullableUuid,
+      generated_at: dateTime,
+      totals: {
+        type: 'object',
+        required: [
+          'evidences',
+          'pains',
+          'hypotheses',
+          'experiments',
+          'roadmap_items',
+          'insights',
+          'outcomes',
+          'objectives',
+          'key_results',
+        ],
+        properties: {
+          evidences: { type: 'integer' },
+          pains: { type: 'integer' },
+          hypotheses: { type: 'integer' },
+          experiments: { type: 'integer' },
+          roadmap_items: { type: 'integer' },
+          insights: { type: 'integer' },
+          outcomes: { type: 'integer' },
+          objectives: { type: 'integer' },
+          key_results: { type: 'integer' },
+        },
+      },
+      evidences_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      pains_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      hypotheses_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      experiments_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      experiment_results: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      roadmap_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      outcomes_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      objectives_by_status: { type: 'array', items: { $ref: 'AnalyticsStatusCount#' } },
+      discovery_funnel: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['key', 'label', 'count', 'conversion_rate'],
+          properties: {
+            key: { type: 'string' },
+            label: { type: 'string' },
+            count: { type: 'integer' },
+            conversion_rate: nullableInteger,
+          },
+        },
+      },
+      health: {
+        type: 'object',
+        required: [
+          'hypothesis_invalidation_rate',
+          'avg_investigating_pain_age_days',
+          'roadmap_strategic_coverage_rate',
+        ],
+        properties: {
+          hypothesis_invalidation_rate: nullableInteger,
+          avg_investigating_pain_age_days: nullableInteger,
+          roadmap_strategic_coverage_rate: nullableInteger,
+        },
+      },
+      upcoming_measurements: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [
+            'outcome_code',
+            'roadmap_code',
+            'roadmap_title',
+            'hypothesized_impact',
+            'status',
+            'due_at',
+          ],
+          properties: {
+            outcome_code: { type: 'string' },
+            roadmap_code: { type: 'string' },
+            roadmap_title: { type: 'string' },
+            hypothesized_impact: { type: 'string' },
+            status: { type: 'string' },
+            due_at: dateTime,
+          },
+        },
+      },
+      recent_activity: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['entity_type', 'event_type', 'code', 'title', 'actor_name', 'to_status', 'occurred_at'],
+          properties: {
+            entity_type: { type: 'string' },
+            event_type: { type: 'string' },
+            code: nullableString,
+            title: nullableString,
+            actor_name: nullableString,
+            to_status: nullableString,
+            occurred_at: dateTime,
+          },
+        },
+      },
+    },
+  });
+
+  app.addSchema({
     $id: 'PainTraceabilityQuery',
     type: 'object',
     required: ['id'],
@@ -504,12 +670,16 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   app.addSchema({
     $id: 'WorkspaceMember',
     type: 'object',
-    required: ['workspace_id', 'user_id', 'role', 'joined_at', 'removed_at', 'updated_at'],
+    required: ['workspace_id', 'user_id', 'name', 'email', 'role', 'joined_at', 'removed_at', 'updated_at'],
     properties: {
       workspace_id: uuid,
       user_id: uuid,
-      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer'] },
+      name: { type: 'string' },
+      email: { type: 'string', format: 'email' },
+      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
       joined_at: dateTime,
+      last_accessed_at: nullableDateTime,
+      onboarded_at: nullableDateTime,
       removed_at: nullableDateTime,
       updated_at: dateTime,
     },
@@ -521,7 +691,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     required: ['user_id'],
     properties: {
       user_id: uuid,
-      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer'], nullable: true },
+      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'], nullable: true },
     },
   });
 
@@ -530,7 +700,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     type: 'object',
     required: ['role'],
     properties: {
-      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer'] },
+      role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
     },
   });
 
@@ -554,6 +724,81 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   });
 
   app.addSchema({
+    $id: 'WorkspaceTeam',
+    type: 'object',
+    required: [
+      'id',
+      'workspace_id',
+      'code',
+      'name',
+      'description',
+      'color',
+      'member_ids',
+      'product_ids',
+      'created_at',
+      'updated_at',
+      'deleted_at',
+    ],
+    properties: {
+      id: uuid,
+      workspace_id: uuid,
+      code: { type: 'string', pattern: '^TM-[0-9]+$' },
+      name: { type: 'string' },
+      description: nullableString,
+      color: nullableString,
+      member_ids: { type: 'array', items: uuid },
+      product_ids: { type: 'array', items: uuid },
+      created_at: dateTime,
+      updated_at: dateTime,
+      deleted_at: nullableDateTime,
+    },
+  });
+
+  app.addSchema({
+    $id: 'CreateWorkspaceTeamRequest',
+    type: 'object',
+    required: ['name'],
+    properties: {
+      name: { type: 'string', minLength: 2, maxLength: 120 },
+      description: { type: 'string', maxLength: 2000 },
+      color: { type: 'string', maxLength: 80 },
+      product_ids: { type: 'array', items: uuid },
+      member_ids: { type: 'array', items: uuid },
+    },
+  });
+
+  app.addSchema({
+    $id: 'UpdateWorkspaceTeamRequest',
+    type: 'object',
+    minProperties: 1,
+    properties: {
+      name: { type: 'string', minLength: 2, maxLength: 120 },
+      description: { type: 'string', maxLength: 2000, nullable: true },
+      color: { type: 'string', maxLength: 80, nullable: true },
+    },
+  });
+
+  app.addSchema({
+    $id: 'TeamMemberParams',
+    type: 'object',
+    properties: {
+      id: uuid,
+      user_id: uuid,
+    },
+    required: ['id', 'user_id'],
+  });
+
+  app.addSchema({
+    $id: 'TeamProductParams',
+    type: 'object',
+    properties: {
+      id: uuid,
+      product_id: uuid,
+    },
+    required: ['id', 'product_id'],
+  });
+
+  app.addSchema({
     $id: 'Product',
     type: 'object',
     required: ['id', 'workspace_id', 'name', 'vision', 'metadata', 'created_at', 'updated_at', 'deleted_at'],
@@ -566,6 +811,61 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       created_at: dateTime,
       updated_at: dateTime,
       deleted_at: nullableDateTime,
+    },
+  });
+
+  app.addSchema({
+    $id: 'Persona',
+    type: 'object',
+    required: [
+      'id',
+      'workspace_id',
+      'code',
+      'name',
+      'description',
+      'segment_size_estimate',
+      'metadata',
+      'pain_ids',
+      'created_at',
+      'updated_at',
+      'deleted_at',
+    ],
+    properties: {
+      id: uuid,
+      workspace_id: uuid,
+      code: { type: 'string', pattern: '^PS-[0-9]+$' },
+      name: { type: 'string' },
+      description: nullableString,
+      segment_size_estimate: nullableInteger,
+      metadata: { type: 'object', additionalProperties: true },
+      pain_ids: { type: 'array', items: uuid },
+      created_at: dateTime,
+      updated_at: dateTime,
+      deleted_at: nullableDateTime,
+    },
+  });
+
+  app.addSchema({
+    $id: 'CreatePersonaRequest',
+    type: 'object',
+    required: ['name'],
+    properties: {
+      name: { type: 'string', minLength: 2, maxLength: 200 },
+      description: { type: 'string', maxLength: 2000 },
+      segment_size_estimate: { type: 'integer', minimum: 0 },
+      metadata: { type: 'object', additionalProperties: true },
+    },
+  });
+
+  app.addSchema({
+    $id: 'UpdatePersonaRequest',
+    type: 'object',
+    minProperties: 1,
+    properties: {
+      name: { type: 'string', minLength: 2, maxLength: 200 },
+      description: { type: 'string', maxLength: 2000, nullable: true },
+      segment_size_estimate: { type: 'integer', minimum: 0, nullable: true },
+      metadata: { type: 'object', additionalProperties: true },
     },
   });
 
@@ -624,6 +924,27 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   });
 
   app.addSchema({
+    $id: 'PainPersonaLinkParams',
+    type: 'object',
+    required: ['pain_id', 'persona_id'],
+    properties: { pain_id: uuid, persona_id: uuid },
+  });
+
+  app.addSchema({
+    $id: 'PainStrategicPillarLinkParams',
+    type: 'object',
+    required: ['pain_id', 'pillar_id'],
+    properties: { pain_id: uuid, pillar_id: uuid },
+  });
+
+  app.addSchema({
+    $id: 'PainObjectiveLinkParams',
+    type: 'object',
+    required: ['pain_id', 'objective_id'],
+    properties: { pain_id: uuid, objective_id: uuid },
+  });
+
+  app.addSchema({
     $id: 'HypothesisRoadmapLinkParams',
     type: 'object',
     required: ['hypothesis_id', 'roadmap_item_id'],
@@ -643,7 +964,9 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     required: [
       'id',
       'workspace_id',
+      'product_id',
       'hypothesis_id',
+      'code',
       'title',
       'method',
       'success_criteria',
@@ -654,7 +977,9 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     properties: {
       id: uuid,
       workspace_id: uuid,
+      product_id: uuid,
       hypothesis_id: uuid,
+      code: { type: 'string', pattern: '^EX-[0-9]+$' },
       title: { type: 'string' },
       method: { type: 'string', enum: EXPERIMENT_METHODS },
       success_criteria: { type: 'string' },
@@ -717,6 +1042,8 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     required: [
       'id',
       'workspace_id',
+      'product_id',
+      'code',
       'title',
       'description',
       'evidence_count',
@@ -726,7 +1053,8 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     properties: {
       id: uuid,
       workspace_id: uuid,
-      product_id: { ...uuid, nullable: true },
+      product_id: uuid,
+      code: { type: 'string', pattern: '^IN-[0-9]+$' },
       title: { type: 'string' },
       description: { type: 'string' },
       confidence_score: nullableNumber,
@@ -776,6 +1104,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     type: 'object',
     properties: {
       id: uuid,
+      code: { type: 'string' },
       title: { type: 'string' },
       source: { type: 'string' },
       status: { type: 'string' },
@@ -807,6 +1136,51 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     type: 'object',
     required: ['pain_id', 'hypothesis_id'],
     properties: { pain_id: uuid, hypothesis_id: uuid },
+  });
+
+  app.addSchema({
+    $id: 'PainPersonaLink',
+    type: 'object',
+    required: ['pain_id', 'persona_id'],
+    properties: { pain_id: uuid, persona_id: uuid },
+  });
+
+  app.addSchema({
+    $id: 'LinkedStrategicPillar',
+    type: 'object',
+    properties: {
+      id: uuid,
+      code: { type: 'string' },
+      name: { type: 'string' },
+      color: nullableString,
+      linked_at: dateTime,
+    },
+  });
+
+  app.addSchema({
+    $id: 'PainStrategicPillarLink',
+    type: 'object',
+    required: ['pain_id', 'pillar_id'],
+    properties: { pain_id: uuid, pillar_id: uuid },
+  });
+
+  app.addSchema({
+    $id: 'LinkedObjective',
+    type: 'object',
+    properties: {
+      id: uuid,
+      code: { type: 'string' },
+      title: { type: 'string' },
+      status: { type: 'string' },
+      linked_at: dateTime,
+    },
+  });
+
+  app.addSchema({
+    $id: 'PainObjectiveLink',
+    type: 'object',
+    required: ['pain_id', 'objective_id'],
+    properties: { pain_id: uuid, objective_id: uuid },
   });
 
   app.addSchema({
@@ -845,11 +1219,12 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   app.addSchema({
     $id: 'StrategicPillar',
     type: 'object',
-    required: ['id', 'workspace_id', 'product_id', 'name', 'position', 'created_at', 'updated_at'],
+    required: ['id', 'workspace_id', 'product_id', 'code', 'name', 'position', 'created_at', 'updated_at'],
     properties: {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^PL-[0-9]+$' },
       name: { type: 'string' },
       description: nullableString,
       color: nullableString,
@@ -887,16 +1262,18 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   app.addSchema({
     $id: 'Objective',
     type: 'object',
-    required: ['id', 'workspace_id', 'product_id', 'title', 'status', 'created_at', 'updated_at'],
+    required: ['id', 'workspace_id', 'product_id', 'code', 'title', 'status', 'created_at', 'updated_at'],
     properties: {
       id: uuid,
       workspace_id: uuid,
       product_id: uuid,
+      code: { type: 'string', pattern: '^OKR-[0-9]+$' },
       title: { type: 'string' },
       description: nullableString,
       status: { type: 'string', enum: OBJECTIVE_STATUSES },
       horizon_start: nullableDate,
       horizon_end: nullableDate,
+      pillar_id: nullableUuid,
       owner_id: nullableUuid,
       created_at: dateTime,
       updated_at: dateTime,
@@ -913,6 +1290,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       description: { type: 'string', maxLength: 5000 },
       horizon_start: date,
       horizon_end: date,
+      pillar_id: uuid,
       owner_id: uuid,
     },
   });
@@ -926,6 +1304,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       description: { type: 'string', maxLength: 5000, nullable: true },
       horizon_start: { ...date, nullable: true },
       horizon_end: { ...date, nullable: true },
+      pillar_id: { ...uuid, nullable: true },
       owner_id: { ...uuid, nullable: true },
     },
   });
@@ -940,11 +1319,12 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
   app.addSchema({
     $id: 'KeyResult',
     type: 'object',
-    required: ['id', 'workspace_id', 'objective_id', 'title', 'created_at', 'updated_at'],
+    required: ['id', 'workspace_id', 'objective_id', 'code', 'title', 'created_at', 'updated_at'],
     properties: {
       id: uuid,
       workspace_id: uuid,
       objective_id: uuid,
+      code: { type: 'string', pattern: '^KR-[0-9]+$' },
       title: { type: 'string' },
       metric_type: nullableString,
       baseline: nullableNumber,
@@ -963,11 +1343,11 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     required: ['title'],
     properties: {
       title: { type: 'string', minLength: 3, maxLength: 200 },
-      metric_type: { type: 'string', maxLength: 100 },
-      baseline: { type: 'number' },
-      target: { type: 'number' },
-      current_value: { type: 'number' },
-      unit: { type: 'string', maxLength: 50 },
+      metric_type: { type: 'string', maxLength: 100, nullable: true },
+      baseline: { type: 'number', nullable: true },
+      target: { type: 'number', nullable: true },
+      current_value: { type: 'number', nullable: true },
+      unit: { type: 'string', maxLength: 50, nullable: true },
     },
   });
 
@@ -992,6 +1372,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       'id',
       'workspace_id',
       'roadmap_item_id',
+      'code',
       'hypothesized_impact',
       'measurement_window_days',
       'status',
@@ -1002,6 +1383,7 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       id: uuid,
       workspace_id: uuid,
       roadmap_item_id: uuid,
+      code: { type: 'string', pattern: '^OC-[0-9]+$' },
       key_result_id: nullableUuid,
       pain_id: nullableUuid,
       hypothesized_impact: { type: 'string' },

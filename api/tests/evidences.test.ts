@@ -44,6 +44,7 @@ describe('CRUD de evidences', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
     expect(body.id).toBeDefined();
+    expect(body.code).toMatch(/^EV-\d{2,}$/);
     expect(body.status).toBe('new');
     expect(body.product_id).toBe(productId);
     evidenceId = body.id;
@@ -61,6 +62,7 @@ describe('CRUD de evidences', () => {
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBeGreaterThan(0);
     expect(body[0].product_id).toBe(productId);
+    expect(body[0].code).toMatch(/^EV-\d{2,}$/);
   });
 
   it('GET /evidences/:id retorna a evidence criada', async () => {
@@ -73,6 +75,7 @@ describe('CRUD de evidences', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.id).toBe(evidenceId);
+    expect(body.code).toMatch(/^EV-\d{2,}$/);
     expect(body.status).toBe('new');
   });
 

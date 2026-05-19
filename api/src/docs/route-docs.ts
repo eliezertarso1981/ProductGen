@@ -26,14 +26,111 @@ export const healthRouteSchemas = {
 export const authRouteSchemas = {
   login: {
     tags: ['Auth'],
-    summary: 'Faz login no workspace',
+    summary: 'Faz login do usuário',
     description:
-      'Login temporário de desenvolvimento. Ainda não valida senha; localiza usuário e workspace e retorna um JWT.',
+      'Valida email e senha. Retorna um access token para compatibilidade e grava cookies HTTP-only de access/refresh.',
     body: { $ref: 'LoginRequest#' },
     response: {
       200: { $ref: 'LoginResponse#' },
       401: errorResponse,
       ...validationErrors,
+    },
+  },
+};
+
+export const personaRouteSchemas = {
+  list: {
+    tags: ['Personas'],
+    summary: 'Lista personas do workspace',
+    description: 'Retorna personas não removidas com códigos humanos PS-XX por workspace.',
+    security: bearer,
+    params: { $ref: 'WorkspaceIdParams#' },
+    response: {
+      200: { type: 'array', items: { $ref: 'Persona#' } },
+      ...authErrors,
+    },
+  },
+  create: {
+    tags: ['Personas'],
+    summary: 'Cria uma persona',
+    description: 'Cria uma persona workspace-scoped e gera code PS-XX.',
+    security: bearer,
+    params: { $ref: 'WorkspaceIdParams#' },
+    body: { $ref: 'CreatePersonaRequest#' },
+    response: {
+      201: { $ref: 'Persona#' },
+      400: errorResponse,
+      401: errorResponse,
+      422: errorResponse,
+      500: errorResponse,
+    },
+  },
+  get: {
+    tags: ['Personas'],
+    summary: 'Busca uma persona por ID',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    response: {
+      200: { $ref: 'Persona#' },
+      ...readErrors,
+    },
+  },
+  update: {
+    tags: ['Personas'],
+    summary: 'Atualiza campos de uma persona',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    body: { $ref: 'UpdatePersonaRequest#' },
+    response: {
+      200: { $ref: 'Persona#' },
+      ...writeErrors,
+    },
+  },
+  delete: {
+    tags: ['Personas'],
+    summary: 'Remove uma persona com soft delete',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    response: {
+      204: { type: 'null' },
+      401: errorResponse,
+      404: errorResponse,
+      500: errorResponse,
+    },
+  },
+  listPainPersonas: {
+    tags: ['Personas'],
+    summary: 'Lista personas vinculadas a uma dor',
+    security: bearer,
+    params: { $ref: 'PainIdParams#' },
+    response: {
+      200: { type: 'array', items: { $ref: 'Persona#' } },
+      ...readErrors,
+    },
+  },
+  linkPainPersona: {
+    tags: ['Personas'],
+    summary: 'Vincula dor ↔ persona',
+    security: bearer,
+    params: { $ref: 'PainPersonaLinkParams#' },
+    response: {
+      201: { $ref: 'PainPersonaLink#' },
+      401: errorResponse,
+      404: errorResponse,
+      422: errorResponse,
+      500: errorResponse,
+    },
+  },
+  unlinkPainPersona: {
+    tags: ['Personas'],
+    summary: 'Remove vínculo dor ↔ persona',
+    security: bearer,
+    params: { $ref: 'PainPersonaLinkParams#' },
+    response: {
+      204: { type: 'null' },
+      401: errorResponse,
+      404: errorResponse,
+      500: errorResponse,
     },
   },
 };
@@ -400,6 +497,15 @@ export const evidenceRouteSchemas = {
 };
 
 export const analyticsRouteSchemas = {
+  dashboard: {
+    tags: ['Analytics'],
+    summary: 'Consulta o dashboard agregado de produto/workspace',
+    description:
+      'Retorna KPIs agregados, funil de discovery, sinais de saúde, medições futuras e atividade recente com dados reais.',
+    security: bearer,
+    querystring: { $ref: 'DashboardFilterQuery#' },
+    response: { 200: { $ref: 'DashboardAnalytics#' }, ...authErrors },
+  },
   discoveryFunnel: {
     tags: ['Analytics'],
     summary: 'Consulta o funil de discovery',
@@ -655,6 +761,8 @@ export const insightRouteSchemas = {
   create: {
     tags: ['Insights'],
     summary: 'Cria um insight',
+    description:
+      'Cria um insight associado ao produto. Evidências são vínculos opcionais adicionados depois via evidence_insight_links.',
     security: bearer,
     params: { $ref: 'ProductIdParams#' },
     body: { $ref: 'CreateInsightRequest#' },
@@ -766,6 +874,76 @@ export const linkRouteSchemas = {
       500: errorResponse,
     },
   },
+  listPainStrategicPillars: {
+    tags: ['Links'],
+    summary: 'Lista pilares estratégicos vinculados a uma dor',
+    security: bearer,
+    params: { $ref: 'PainIdParams#' },
+    response: {
+      200: { type: 'array', items: { $ref: 'LinkedStrategicPillar#' } },
+      ...readErrors,
+    },
+  },
+  linkPainStrategicPillar: {
+    tags: ['Links'],
+    summary: 'Vincula dor ↔ pilar estratégico',
+    security: bearer,
+    params: { $ref: 'PainStrategicPillarLinkParams#' },
+    response: {
+      201: { $ref: 'PainStrategicPillarLink#' },
+      401: errorResponse,
+      404: errorResponse,
+      422: errorResponse,
+      500: errorResponse,
+    },
+  },
+  unlinkPainStrategicPillar: {
+    tags: ['Links'],
+    summary: 'Remove vínculo dor ↔ pilar estratégico',
+    security: bearer,
+    params: { $ref: 'PainStrategicPillarLinkParams#' },
+    response: {
+      204: { type: 'null' },
+      401: errorResponse,
+      404: errorResponse,
+      500: errorResponse,
+    },
+  },
+  listPainObjectives: {
+    tags: ['Links'],
+    summary: 'Lista objetivos/OKRs vinculados a uma dor',
+    security: bearer,
+    params: { $ref: 'PainIdParams#' },
+    response: {
+      200: { type: 'array', items: { $ref: 'LinkedObjective#' } },
+      ...readErrors,
+    },
+  },
+  linkPainObjective: {
+    tags: ['Links'],
+    summary: 'Vincula dor ↔ objetivo/OKR',
+    security: bearer,
+    params: { $ref: 'PainObjectiveLinkParams#' },
+    response: {
+      201: { $ref: 'PainObjectiveLink#' },
+      401: errorResponse,
+      404: errorResponse,
+      422: errorResponse,
+      500: errorResponse,
+    },
+  },
+  unlinkPainObjective: {
+    tags: ['Links'],
+    summary: 'Remove vínculo dor ↔ objetivo/OKR',
+    security: bearer,
+    params: { $ref: 'PainObjectiveLinkParams#' },
+    response: {
+      204: { type: 'null' },
+      401: errorResponse,
+      404: errorResponse,
+      500: errorResponse,
+    },
+  },
   listHypothesisRoadmap: {
     tags: ['Links'],
     summary: 'Lista itens de roadmap vinculados à hipótese',
@@ -799,6 +977,108 @@ export const linkRouteSchemas = {
       401: errorResponse,
       404: errorResponse,
       500: errorResponse,
+    },
+  },
+};
+
+export const workspaceTeamRouteSchemas = {
+  list: {
+    tags: ['Workspace Teams'],
+    summary: 'Lista grupos/times de um workspace',
+    description: 'Retorna times do workspace com códigos humanos TM-XX e vínculos ativos.',
+    security: bearer,
+    params: { $ref: 'WorkspaceIdParams#' },
+    response: {
+      200: { type: 'array', items: { $ref: 'WorkspaceTeam#' } },
+      ...authErrors,
+    },
+  },
+  create: {
+    tags: ['Workspace Teams'],
+    summary: 'Cria um grupo/time no workspace',
+    description: 'Gera code TM-XX por workspace e aceita vínculos iniciais com membros/produtos.',
+    security: bearer,
+    params: { $ref: 'WorkspaceIdParams#' },
+    body: { $ref: 'CreateWorkspaceTeamRequest#' },
+    response: {
+      201: { $ref: 'WorkspaceTeam#' },
+      400: errorResponse,
+      401: errorResponse,
+      422: errorResponse,
+      500: errorResponse,
+    },
+  },
+  get: {
+    tags: ['Workspace Teams'],
+    summary: 'Busca um grupo/time por ID',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    response: {
+      200: { $ref: 'WorkspaceTeam#' },
+      ...readErrors,
+    },
+  },
+  update: {
+    tags: ['Workspace Teams'],
+    summary: 'Atualiza campos de um grupo/time',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    body: { $ref: 'UpdateWorkspaceTeamRequest#' },
+    response: {
+      200: { $ref: 'WorkspaceTeam#' },
+      ...writeErrors,
+    },
+  },
+  delete: {
+    tags: ['Workspace Teams'],
+    summary: 'Remove um grupo/time com soft delete',
+    security: bearer,
+    params: { $ref: 'IdParams#' },
+    response: {
+      204: { type: 'null' },
+      401: errorResponse,
+      404: errorResponse,
+      500: errorResponse,
+    },
+  },
+  addMember: {
+    tags: ['Workspace Teams'],
+    summary: 'Associa um membro do workspace ao grupo/time',
+    security: bearer,
+    params: { $ref: 'TeamMemberParams#' },
+    response: {
+      201: { $ref: 'WorkspaceTeam#' },
+      ...writeErrors,
+    },
+  },
+  removeMember: {
+    tags: ['Workspace Teams'],
+    summary: 'Remove um membro do grupo/time',
+    security: bearer,
+    params: { $ref: 'TeamMemberParams#' },
+    response: {
+      200: { $ref: 'WorkspaceTeam#' },
+      ...writeErrors,
+    },
+  },
+  addProduct: {
+    tags: ['Workspace Teams'],
+    summary: 'Associa um produto ao grupo/time',
+    security: bearer,
+    params: { $ref: 'TeamProductParams#' },
+    response: {
+      201: { $ref: 'WorkspaceTeam#' },
+      ...writeErrors,
+    },
+  },
+  removeProduct: {
+    tags: ['Workspace Teams'],
+    summary: 'Remove um produto do grupo/time',
+    security: bearer,
+    params: { $ref: 'TeamProductParams#' },
+    response: {
+      200: { $ref: 'WorkspaceTeam#' },
+      ...writeErrors,
     },
   },
 };

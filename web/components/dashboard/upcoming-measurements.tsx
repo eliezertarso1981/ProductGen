@@ -1,7 +1,17 @@
 import { ChevronRight, Target } from "lucide-react";
-import { upcomingMeasurements } from "@/lib/mock-data";
+import type { ApiDashboardAnalytics } from "@/lib/productgen-api";
 
-export function UpcomingMeasurements() {
+type Measurement = ApiDashboardAnalytics["upcoming_measurements"][number];
+
+function formatDue(value: string) {
+  const due = new Date(value);
+  const diffDays = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
+  if (diffDays < 0) return `vencido há ${Math.abs(diffDays)} dia${Math.abs(diffDays) === 1 ? "" : "s"}`;
+  if (diffDays === 0) return "vence hoje";
+  return `em ${diffDays} dia${diffDays === 1 ? "" : "s"}`;
+}
+
+export function UpcomingMeasurements({ measurements }: { measurements: Measurement[] }) {
   return (
     <div
       className="rounded-2xl border p-6"
@@ -20,14 +30,14 @@ export function UpcomingMeasurements() {
       </div>
 
       <ul className="mt-4 space-y-1">
-        {upcomingMeasurements.map((m) => {
-          const tone =
-            m.tone === "danger"
-              ? { bg: "var(--danger-soft)", color: "var(--danger-fg)" }
-              : { bg: "var(--warn-soft)", color: "var(--warn-fg)" };
+        {measurements.map((m) => {
+          const isOverdue = new Date(m.due_at).getTime() < Date.now();
+          const tone = isOverdue
+            ? { bg: "var(--danger-soft)", color: "var(--danger-fg)" }
+            : { bg: "var(--warn-soft)", color: "var(--warn-fg)" };
           return (
             <li
-              key={m.id}
+              key={m.outcome_code}
               className="flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-[var(--bg-muted)]"
             >
               <div
@@ -38,17 +48,17 @@ export function UpcomingMeasurements() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
-                  {m.title}
+                  {m.roadmap_code} · {m.roadmap_title}
                 </div>
                 <div className="mt-0.5 text-xs" style={{ color: "var(--fg-subtle)" }}>
-                  Medindo: {m.measuring}
+                  Medindo: {m.hypothesized_impact}
                 </div>
               </div>
               <span
                 className="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold whitespace-nowrap"
                 style={{ backgroundColor: tone.bg, color: tone.color }}
               >
-                {m.status}
+                {formatDue(m.due_at)}
               </span>
             </li>
           );

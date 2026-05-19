@@ -10,6 +10,7 @@ export const createObjectiveSchema = z
     description: z.string().max(5000).optional(),
     horizon_start: z.string().date().optional(),
     horizon_end: z.string().date().optional(),
+    pillar_id: z.string().uuid('pillar_id inválido').optional(),
     owner_id: z.string().uuid('owner_id inválido').optional(),
   })
   .refine(
@@ -28,6 +29,7 @@ export const updateObjectiveSchema = z
     description: z.string().max(5000).nullable().optional(),
     horizon_start: z.string().date().nullable().optional(),
     horizon_end: z.string().date().nullable().optional(),
+    pillar_id: z.string().uuid().nullable().optional(),
     owner_id: z.string().uuid().nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {

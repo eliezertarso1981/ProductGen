@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
+import { logoutFromProductgenApi } from "@/lib/productgen-api";
 
 export function LogoutButton({ collapsed = false }: { collapsed?: boolean }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
   function confirm() {
+    void logoutFromProductgenApi();
     setOpen(false);
     router.push("/login");
   }

@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import {
   LayoutGrid,
+  Package,
   Columns3,
   Target,
   Lightbulb,
+  Sparkles,
   AlertCircle,
   FlaskConical,
   Beaker,
@@ -19,12 +21,13 @@ import { useDiscovery } from "@/lib/discovery-store";
 import { useDores } from "@/lib/dores-store";
 
 export function SidebarMenu({ collapsed = false }: { collapsed?: boolean }) {
-  const { hypotheses, experiments } = useDiscovery();
+  const { hypotheses, experiments, insights } = useDiscovery();
   const { pains } = useDores();
   return (
     <nav className="flex-1 overflow-y-auto px-3 pb-4">
       <div className="space-y-1">
         <NavItem href="/dashboard" icon={LayoutGrid} label="Home" collapsed={collapsed} />
+        <NavItem href="/produto" icon={Package} label="Produto" collapsed={collapsed} />
       </div>
 
       <Group id="estrategia" title="Estratégia" collapsed={collapsed}>
@@ -37,6 +40,7 @@ export function SidebarMenu({ collapsed = false }: { collapsed?: boolean }) {
         <NavItem href="/hipoteses" icon={FlaskConical} label="Hipóteses" badge={hypotheses.length} collapsed={collapsed} />
         <NavItem href="/experimentos" icon={Beaker} label="Experimentos" badge={experiments.length} collapsed={collapsed} />
         <NavItem href="/evidencias" icon={Lightbulb} label="Evidências" collapsed={collapsed} />
+        <NavItem href="/insights" icon={Sparkles} label="Insights" badge={insights.length} collapsed={collapsed} />
       </Group>
 
       <Group id="delivery" title="Delivery" collapsed={collapsed}>

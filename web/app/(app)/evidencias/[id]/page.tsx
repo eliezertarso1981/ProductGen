@@ -1,20 +1,70 @@
 "use client";
 
-import { use, useEffect, useRef } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Trash2, Plus, X, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { Plus, X, Link as LinkIcon, ExternalLink, Sparkles } from "lucide-react";
 import { useDiscovery } from "@/lib/discovery-store";
-import { evidenceTypeConfig, evidenceTypes, type EvidenceType } from "@/lib/discovery-data";
-import { BackLink, Field, TextInput, Textarea, formatDate } from "@/components/shared/crud-ui";
+import {
+  evidenceTypeConfig,
+  evidenceTypes,
+  getEvidenceDisplayId,
+  getExperimentDisplayId,
+  type EvidenceType,
+} from "@/lib/discovery-data";
+import {
+  BackLink,
+  CancelAction,
+  DeleteAction,
+  detailPageClassName,
+  Field,
+  FormActions,
+  SaveAction,
+  TextInput,
+  Textarea,
+  formatDate,
+} from "@/components/shared/crud-ui";
+import { cn } from "@/lib/utils";
 
 export default function EvidenceDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const isNew = useSearchParams().get("new") === "1";
-  const { ready, getEvidence, updateEvidence, deleteEvidence, getExperiment } = useDiscovery();
+  const {
+    ready,
+    getEvidence,
+    updateEvidence,
+    deleteEvidence,
+    getExperiment,
+    createInsight,
+    insightsByEvidence,
+  } = useDiscovery();
 
   const titleRef = useRef<HTMLInputElement>(null);
+  const ev = getEvidence(id);
+  const evId = ev?.id;
+  const evTitle = ev?.title ?? "";
+  const evNotes = ev?.notes ?? "";
+  const evSource = ev?.source ?? "";
+  const evAttachments = ev?.attachments;
+  const [draft, setDraft] = useState({
+    title: "",
+    notes: "",
+    source: "",
+    attachments: [] as { id: string; label: string; url: string }[],
+  });
+
+  useEffect(() => {
+    if (!evId) return;
+    setDraft({
+      title: evTitle,
+      notes: evNotes,
+      source: evSource,
+      attachments: evAttachments ?? [],
+    });
+  }, [evAttachments, evId, evNotes, evSource, evTitle]);
+
   useEffect(() => {
     if (isNew) {
       titleRef.current?.focus();
@@ -23,7 +73,6 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
   }, [isNew]);
 
   if (!ready) return <div className="px-6 py-10 text-[var(--fg-faint)]">Carregando...</div>;
-  const ev = getEvidence(id);
   if (!ev)
     return (
       <div className="px-6 py-10">
@@ -35,35 +84,49 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
     );
 
   const exp = ev.experimentId ? getExperiment(ev.experimentId) : undefined;
+  const displayId = getEvidenceDisplayId(ev);
+  const insights = insightsByEvidence(ev.id);
+  const dirty =
+    draft.title !== ev.title ||
+    draft.notes !== ev.notes ||
+    draft.source !== ev.source ||
+    JSON.stringify(draft.attachments) !== JSON.stringify(ev.attachments);
+  const resetDraft = () =>
+    setDraft({
+      title: ev.title,
+      notes: ev.notes,
+      source: ev.source,
+      attachments: ev.attachments,
+    });
+  const saveDraft = () => {
+    updateEvidence(ev.id, {
+      title: draft.title.trim() || ev.title,
+      notes: draft.notes,
+      source: draft.source,
+      attachments: draft.attachments,
+    });
+    toast.success("Evidência salva");
+  };
 
   return (
-    <div className="px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
+    <div className={detailPageClassName}>
+      <div className="mb-4">
         <BackLink href="/evidencias" label="Evidências" />
-        <button
-          onClick={() => {
-            if (confirm("Excluir esta evidência?")) {
-              deleteEvidence(ev.id);
-              router.push("/evidencias");
-            }
-          }}
-          className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[12px] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
-          style={{ borderColor: "var(--danger-border)" }}
-        >
-          <Trash2 size={13} /> Excluir
-        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_400px]">
         <div>
           <div className="flex items-center gap-2">
-            <div className="font-mono text-[12px] text-[var(--fg-faint)]">{ev.id}</div>
+            {displayId && <div className="font-mono text-[12px] text-[var(--fg-faint)]">{displayId}</div>}
             {(() => {
               const cfg = evidenceTypeConfig[ev.type];
               return (
                 <span
                   className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                  style={{ backgroundColor: `${cfg.color}15`, color: cfg.color }}
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${cfg.color} 14%, var(--bg-elevated))`,
+                    color: cfg.color,
+                  }}
                 >
                   <span
                     aria-hidden
@@ -77,9 +140,10 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
           </div>
           <input
             ref={titleRef}
-            value={ev.title}
-            onChange={(e) => updateEvidence(ev.id, { title: e.target.value })}
-            className="mt-1 w-full border-0 bg-transparent text-[24px] font-semibold tracking-tight text-[var(--fg)] outline-none focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
+            value={draft.title}
+            onChange={(e) => setDraft((current) => ({ ...current, title: e.target.value }))}
+            placeholder="Título da evidência"
+            className="mt-1 w-full border-0 bg-transparent text-[28px] font-semibold tracking-tight text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:bg-[var(--bg-muted)] focus:px-2 focus:py-1"
           />
 
           <div className="mt-6">
@@ -88,9 +152,10 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
             </div>
             <Textarea
               rows={6}
-              value={ev.notes}
-              onChange={(e) => updateEvidence(ev.id, { notes: e.target.value })}
+              value={draft.notes}
+              onChange={(e) => setDraft((current) => ({ ...current, notes: e.target.value }))}
               placeholder="Trecho da entrevista, dado coletado, observação..."
+              className="text-[16px]"
             />
           </div>
 
@@ -101,14 +166,15 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
               </div>
               <button
                 onClick={() =>
-                  updateEvidence(ev.id, {
+                  setDraft((current) => ({
+                    ...current,
                     attachments: [
-                      ...ev.attachments,
+                      ...current.attachments,
                       { id: `att-${Date.now()}`, label: "", url: "" },
                     ],
-                  })
+                  }))
                 }
-                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] font-semibold text-[var(--fg-muted)] hover:bg-[var(--bg-muted)]"
                 style={{ borderColor: "var(--border)" }}
               >
                 <Plus size={12} /> Adicionar
@@ -117,11 +183,11 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
             <p className="mb-2 text-[12px] text-[var(--fg-subtle)]">
               Cole URLs de arquivos (Drive, Notion, Figma, gravações) ou links de referência.
             </p>
-            {ev.attachments.length === 0 ? (
+            {draft.attachments.length === 0 ? (
               <p className="text-[13px] text-[var(--fg-faint)]">Nenhum anexo ainda.</p>
             ) : (
               <ul className="space-y-2">
-                {ev.attachments.map((a, i) => (
+                {draft.attachments.map((a, i) => (
                   <li
                     key={a.id}
                     className="rounded-md border p-2.5"
@@ -133,9 +199,9 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
                         <TextInput
                           value={a.label}
                           onChange={(e) => {
-                            const next = [...ev.attachments];
+                            const next = [...draft.attachments];
                             next[i] = { ...a, label: e.target.value };
-                            updateEvidence(ev.id, { attachments: next });
+                            setDraft((current) => ({ ...current, attachments: next }));
                           }}
                           placeholder="Rótulo (ex.: Transcrição entrevista PM-1)"
                         />
@@ -143,9 +209,9 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
                           <TextInput
                             value={a.url}
                             onChange={(e) => {
-                              const next = [...ev.attachments];
+                              const next = [...draft.attachments];
                               next[i] = { ...a, url: e.target.value };
-                              updateEvidence(ev.id, { attachments: next });
+                              setDraft((current) => ({ ...current, attachments: next }));
                             }}
                             placeholder="https://..."
                           />
@@ -164,9 +230,10 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
                       </div>
                       <button
                         onClick={() =>
-                          updateEvidence(ev.id, {
-                            attachments: ev.attachments.filter((_, j) => j !== i),
-                          })
+                          setDraft((current) => ({
+                            ...current,
+                            attachments: current.attachments.filter((_, j) => j !== i),
+                          }))
                         }
                         className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-[var(--fg-faint)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                         aria-label="Remover anexo"
@@ -179,6 +246,20 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
               </ul>
             )}
           </div>
+
+          <FormActions>
+            <SaveAction disabled={!dirty} onClick={saveDraft} />
+            <CancelAction disabled={!dirty} onClick={resetDraft} />
+            <DeleteAction
+              title="Excluir esta evidência?"
+              description={`A evidência "${ev.title}" será removida e deixará de alimentar insights vinculados.`}
+              onConfirm={() => {
+                deleteEvidence(ev.id);
+                toast.success("Evidência excluída");
+                router.push("/evidencias");
+              }}
+            />
+          </FormActions>
         </div>
 
         <aside className="space-y-5">
@@ -190,13 +271,23 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
                 return (
                   <button
                     key={t}
+                    type="button"
                     onClick={() => updateEvidence(ev.id, { type: t as EvidenceType })}
-                    className="rounded-md border px-2.5 py-1 text-[12px]"
-                    style={{
-                      borderColor: active ? cfg.color : "var(--border)",
-                      color: active ? cfg.color : "var(--fg-subtle)",
-                      backgroundColor: active ? `${cfg.color}10` : "white",
-                    }}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors",
+                      active
+                        ? ""
+                        : "border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-muted)] hover:text-[var(--fg)]",
+                    )}
+                    style={
+                      active
+                        ? {
+                            borderColor: cfg.color,
+                            color: cfg.color,
+                            backgroundColor: `color-mix(in srgb, ${cfg.color} 14%, var(--bg-elevated))`,
+                          }
+                        : undefined
+                    }
                   >
                     {cfg.label}
                   </button>
@@ -207,8 +298,8 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
 
           <Field label="Origem">
             <TextInput
-              value={ev.source}
-              onChange={(e) => updateEvidence(ev.id, { source: e.target.value })}
+              value={draft.source}
+              onChange={(e) => setDraft((current) => ({ ...current, source: e.target.value }))}
               placeholder="Entrevista 12/05, ticket #123, NPS Q1..."
             />
           </Field>
@@ -217,10 +308,11 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
             {exp ? (
               <Link
                 href={`/experimentos/${exp.id}`}
-                className="block rounded-md border bg-white p-2.5 text-[13px] hover:bg-[var(--bg-muted)]"
-                style={{ borderColor: "var(--border)" }}
+                className="block rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-2.5 text-[13px] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-muted)]"
               >
-                <div className="font-mono text-[11px] text-[var(--fg-faint)]">{exp.id}</div>
+                <div className="font-mono text-[11px] text-[var(--fg-faint)]">
+                  {getExperimentDisplayId(exp) ?? "Experimento"}
+                </div>
                 <div className="mt-0.5 text-[var(--fg)]">{exp.title}</div>
               </Link>
             ) : (
@@ -228,8 +320,49 @@ export default function EvidenceDetail({ params }: { params: Promise<{ id: strin
             )}
           </Field>
 
+          <Field label="Insights derivados">
+            <div className="space-y-2">
+              {insights.length === 0 ? (
+                <p className="text-[13px] text-[var(--fg-faint)]">Nenhum insight vinculado.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {insights.map((insight) => (
+                    <li key={insight.id}>
+                      <Link
+                        href={`/insights/${insight.id}`}
+                        className="block rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-2.5 text-[13px] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-muted)]"
+                      >
+                        <div className="font-mono text-[11px] text-[var(--fg-faint)]">
+                          {insight.code ?? "Insight"}
+                        </div>
+                        <div className="mt-0.5 text-[var(--fg)]">{insight.title}</div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  void createInsight(ev.productId, ev.id)
+                    .then((insight) => {
+                      router.push(`/insights/${insight.id}?new=1`);
+                    })
+                    .catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Não foi possível criar o insight");
+                    });
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 text-[11px] font-medium text-[var(--fg-muted)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--bg-muted)] hover:text-[var(--fg)]"
+              >
+                <Sparkles size={12} /> Criar insight desta evidência
+              </button>
+            </div>
+          </Field>
+
           <Field label="Atualizada">
-            <div className="text-[13px] text-[var(--fg-muted)]">{formatDate(ev.updatedAt)}</div>
+            <div className="rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[13px] text-[var(--fg-muted)]">
+              {formatDate(ev.updatedAt)}
+            </div>
           </Field>
         </aside>
       </div>

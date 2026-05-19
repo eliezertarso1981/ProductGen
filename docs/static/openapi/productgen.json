@@ -86,19 +86,40 @@
           }
         }
       },
+      "DashboardFilterQuery": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "today",
+              "week",
+              "month",
+              "quarter",
+              "year"
+            ]
+          }
+        }
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
           "email",
-          "workspace_slug"
+          "password"
         ],
         "properties": {
           "email": {
             "type": "string",
             "format": "email"
           },
-          "workspace_slug": {
-            "type": "string"
+          "password": {
+            "type": "string",
+            "minLength": 12,
+            "maxLength": 128
           }
         }
       },
@@ -139,6 +160,8 @@
             "type": "object",
             "required": [
               "id",
+              "slug",
+              "name",
               "role"
             ],
             "properties": {
@@ -146,14 +169,55 @@
                 "type": "string",
                 "format": "uuid"
               },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
               "role": {
                 "type": "string",
                 "enum": [
                   "owner",
                   "admin",
                   "member",
-                  "viewer"
+                  "viewer",
+                  "guest"
                 ]
+              }
+            }
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "slug",
+                "name",
+                "role"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "owner",
+                    "admin",
+                    "member",
+                    "viewer",
+                    "guest"
+                  ]
+                }
               }
             }
           }
@@ -165,6 +229,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "title",
           "description",
           "status",
@@ -188,6 +253,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^PN-[0-9]+$"
           },
           "parent_pain_id": {
             "type": "string",
@@ -301,6 +370,10 @@
             "minLength": 3,
             "maxLength": 200
           },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -354,6 +427,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "title",
           "if_clause",
           "then_clause",
@@ -380,6 +454,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^HP-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -561,6 +639,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "title",
           "content",
           "source",
@@ -586,6 +665,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^EV-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -771,6 +854,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "parent_id",
           "path",
           "type",
@@ -809,6 +893,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^RM-[0-9]+$"
           },
           "parent_id": {
             "type": "string",
@@ -1104,6 +1192,270 @@
           "$ref": "#/components/schemas/AnalyticsRow"
         }
       },
+      "AnalyticsStatusCount": {
+        "type": "object",
+        "required": [
+          "status",
+          "count"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "DashboardAnalytics": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "generated_at",
+          "totals",
+          "evidences_by_status",
+          "pains_by_status",
+          "hypotheses_by_status",
+          "experiments_by_status",
+          "experiment_results",
+          "roadmap_by_status",
+          "outcomes_by_status",
+          "objectives_by_status",
+          "discovery_funnel",
+          "health",
+          "upcoming_measurements",
+          "recent_activity"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totals": {
+            "type": "object",
+            "required": [
+              "evidences",
+              "pains",
+              "hypotheses",
+              "experiments",
+              "roadmap_items",
+              "insights",
+              "outcomes",
+              "objectives",
+              "key_results"
+            ],
+            "properties": {
+              "evidences": {
+                "type": "integer"
+              },
+              "pains": {
+                "type": "integer"
+              },
+              "hypotheses": {
+                "type": "integer"
+              },
+              "experiments": {
+                "type": "integer"
+              },
+              "roadmap_items": {
+                "type": "integer"
+              },
+              "insights": {
+                "type": "integer"
+              },
+              "outcomes": {
+                "type": "integer"
+              },
+              "objectives": {
+                "type": "integer"
+              },
+              "key_results": {
+                "type": "integer"
+              }
+            }
+          },
+          "evidences_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "pains_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "hypotheses_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "experiments_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "experiment_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "roadmap_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "outcomes_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "objectives_by_status": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            }
+          },
+          "discovery_funnel": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "label",
+                "count",
+                "conversion_rate"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "conversion_rate": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "health": {
+            "type": "object",
+            "required": [
+              "hypothesis_invalidation_rate",
+              "avg_investigating_pain_age_days",
+              "roadmap_strategic_coverage_rate"
+            ],
+            "properties": {
+              "hypothesis_invalidation_rate": {
+                "type": "integer",
+                "nullable": true
+              },
+              "avg_investigating_pain_age_days": {
+                "type": "integer",
+                "nullable": true
+              },
+              "roadmap_strategic_coverage_rate": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          },
+          "upcoming_measurements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "outcome_code",
+                "roadmap_code",
+                "roadmap_title",
+                "hypothesized_impact",
+                "status",
+                "due_at"
+              ],
+              "properties": {
+                "outcome_code": {
+                  "type": "string"
+                },
+                "roadmap_code": {
+                  "type": "string"
+                },
+                "roadmap_title": {
+                  "type": "string"
+                },
+                "hypothesized_impact": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "due_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "recent_activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "entity_type",
+                "event_type",
+                "code",
+                "title",
+                "actor_name",
+                "to_status",
+                "occurred_at"
+              ],
+              "properties": {
+                "entity_type": {
+                  "type": "string"
+                },
+                "event_type": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "title": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "actor_name": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "to_status": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
       "PainTraceabilityQuery": {
         "type": "object",
         "required": [
@@ -1142,6 +1494,8 @@
         "required": [
           "workspace_id",
           "user_id",
+          "name",
+          "email",
           "role",
           "joined_at",
           "removed_at",
@@ -1156,18 +1510,36 @@
             "type": "string",
             "format": "uuid"
           },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
           "role": {
             "type": "string",
             "enum": [
               "owner",
               "admin",
               "member",
-              "viewer"
+              "viewer",
+              "guest"
             ]
           },
           "joined_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "last_accessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "onboarded_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "removed_at": {
             "type": "string",
@@ -1196,7 +1568,8 @@
               "owner",
               "admin",
               "member",
-              "viewer"
+              "viewer",
+              "guest"
             ],
             "nullable": true
           }
@@ -1214,7 +1587,8 @@
               "owner",
               "admin",
               "member",
-              "viewer"
+              "viewer",
+              "guest"
             ]
           }
         }
@@ -1246,6 +1620,164 @@
         "required": [
           "workspace_id",
           "user_id"
+        ]
+      },
+      "WorkspaceTeam": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "code",
+          "name",
+          "description",
+          "color",
+          "member_ids",
+          "product_ids",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^TM-[0-9]+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "member_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CreateWorkspaceTeamRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "product_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "member_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "UpdateWorkspaceTeamRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 80,
+            "nullable": true
+          }
+        }
+      },
+      "TeamMemberParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "user_id"
+        ]
+      },
+      "TeamProductParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "product_id"
         ]
       },
       "Product": {
@@ -1292,6 +1824,121 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        }
+      },
+      "Persona": {
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "code",
+          "name",
+          "description",
+          "segment_size_estimate",
+          "metadata",
+          "pain_ids",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^PS-[0-9]+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "segment_size_estimate": {
+            "type": "integer",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "pain_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CreatePersonaRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "segment_size_estimate": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "UpdatePersonaRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          },
+          "segment_size_estimate": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
@@ -1397,6 +2044,57 @@
           }
         }
       },
+      "PainPersonaLinkParams": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "persona_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "persona_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PainStrategicPillarLinkParams": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "pillar_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pillar_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PainObjectiveLinkParams": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "objective_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objective_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "HypothesisRoadmapLinkParams": {
         "type": "object",
         "required": [
@@ -1436,7 +2134,9 @@
         "required": [
           "id",
           "workspace_id",
+          "product_id",
           "hypothesis_id",
+          "code",
           "title",
           "method",
           "success_criteria",
@@ -1453,9 +2153,17 @@
             "type": "string",
             "format": "uuid"
           },
+          "product_id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "hypothesis_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^EX-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -1659,6 +2367,8 @@
         "required": [
           "id",
           "workspace_id",
+          "product_id",
+          "code",
           "title",
           "description",
           "evidence_count",
@@ -1676,8 +2386,11 @@
           },
           "product_id": {
             "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^IN-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -1814,6 +2527,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "code": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -1881,6 +2597,102 @@
             "format": "uuid"
           },
           "hypothesis_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PainPersonaLink": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "persona_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "persona_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LinkedStrategicPillar": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "linked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PainStrategicPillarLink": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "pillar_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pillar_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LinkedObjective": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "linked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PainObjectiveLink": {
+        "type": "object",
+        "required": [
+          "pain_id",
+          "objective_id"
+        ],
+        "properties": {
+          "pain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objective_id": {
             "type": "string",
             "format": "uuid"
           }
@@ -1955,6 +2767,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "name",
           "position",
           "created_at",
@@ -1972,6 +2785,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^PL-[0-9]+$"
           },
           "name": {
             "type": "string"
@@ -2058,6 +2875,7 @@
           "id",
           "workspace_id",
           "product_id",
+          "code",
           "title",
           "status",
           "created_at",
@@ -2075,6 +2893,10 @@
           "product_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^OKR-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -2101,6 +2923,11 @@
           "horizon_end": {
             "type": "string",
             "format": "date",
+            "nullable": true
+          },
+          "pillar_id": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true
           },
           "owner_id": {
@@ -2146,6 +2973,10 @@
             "type": "string",
             "format": "date"
           },
+          "pillar_id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "owner_id": {
             "type": "string",
             "format": "uuid"
@@ -2174,6 +3005,11 @@
           "horizon_end": {
             "type": "string",
             "format": "date",
+            "nullable": true
+          },
+          "pillar_id": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true
           },
           "owner_id": {
@@ -2207,6 +3043,7 @@
           "id",
           "workspace_id",
           "objective_id",
+          "code",
           "title",
           "created_at",
           "updated_at"
@@ -2223,6 +3060,10 @@
           "objective_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^KR-[0-9]+$"
           },
           "title": {
             "type": "string"
@@ -2275,20 +3116,25 @@
           },
           "metric_type": {
             "type": "string",
-            "maxLength": 100
+            "maxLength": 100,
+            "nullable": true
           },
           "baseline": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "target": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "current_value": {
-            "type": "number"
+            "type": "number",
+            "nullable": true
           },
           "unit": {
             "type": "string",
-            "maxLength": 50
+            "maxLength": 50,
+            "nullable": true
           }
         }
       },
@@ -2331,6 +3177,7 @@
           "id",
           "workspace_id",
           "roadmap_item_id",
+          "code",
           "hypothesized_impact",
           "measurement_window_days",
           "status",
@@ -2349,6 +3196,10 @@
           "roadmap_item_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^OC-[0-9]+$"
           },
           "key_result_id": {
             "type": "string",
@@ -3699,11 +4550,11 @@
   "paths": {
     "/auth/login": {
       "post": {
-        "summary": "Faz login no workspace",
+        "summary": "Faz login do usuário",
         "tags": [
           "Auth"
         ],
-        "description": "Login temporário de desenvolvimento. Ainda não valida senha; localiza usuário e workspace e retorna um JWT.",
+        "description": "Valida email e senha. Retorna um access token para compatibilidade e grava cookies HTTP-only de access/refresh.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3754,6 +4605,42 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/logout-all": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }
@@ -5753,6 +6640,78 @@
         }
       }
     },
+    "/analytics/dashboard": {
+      "get": {
+        "summary": "Consulta o dashboard agregado de produto/workspace",
+        "tags": [
+          "Analytics"
+        ],
+        "description": "Retorna KPIs agregados, funil de discovery, sinais de saúde, medições futuras e atividade recente com dados reais.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "query",
+            "name": "product_id",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ]
+            },
+            "in": "query",
+            "name": "period",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAnalytics"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/analytics/discovery-funnel": {
       "get": {
         "summary": "Consulta o funil de discovery",
@@ -7071,6 +8030,1326 @@
         }
       }
     },
+    "/workspaces/{workspace_id}/teams": {
+      "get": {
+        "summary": "Lista grupos/times de um workspace",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "description": "Retorna times do workspace com códigos humanos TM-XX e vínculos ativos.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "workspace_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceTeam"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria um grupo/time no workspace",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "description": "Gera code TM-XX por workspace e aceita vínculos iniciais com membros/produtos.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceTeamRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "workspace_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{id}": {
+      "get": {
+        "summary": "Busca um grupo/time por ID",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualiza campos de um grupo/time",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceTeamRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove um grupo/time com soft delete",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{id}/members/{user_id}": {
+      "post": {
+        "summary": "Associa um membro do workspace ao grupo/time",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "user_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove um membro do grupo/time",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "user_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{id}/products/{product_id}": {
+      "post": {
+        "summary": "Associa um produto ao grupo/time",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "product_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove um produto do grupo/time",
+        "tags": [
+          "Workspace Teams"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "product_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceTeam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/personas": {
+      "get": {
+        "summary": "Lista personas do workspace",
+        "tags": [
+          "Personas"
+        ],
+        "description": "Retorna personas não removidas com códigos humanos PS-XX por workspace.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "workspace_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Persona"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria uma persona",
+        "tags": [
+          "Personas"
+        ],
+        "description": "Cria uma persona workspace-scoped e gera code PS-XX.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePersonaRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "workspace_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Persona"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/personas/{id}": {
+      "get": {
+        "summary": "Busca uma persona por ID",
+        "tags": [
+          "Personas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Persona"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Atualiza campos de uma persona",
+        "tags": [
+          "Personas"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePersonaRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Persona"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove uma persona com soft delete",
+        "tags": [
+          "Personas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/personas": {
+      "get": {
+        "summary": "Lista personas vinculadas a uma dor",
+        "tags": [
+          "Personas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Persona"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/personas/{persona_id}": {
+      "post": {
+        "summary": "Vincula dor ↔ persona",
+        "tags": [
+          "Personas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "persona_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PainPersonaLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove vínculo dor ↔ persona",
+        "tags": [
+          "Personas"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "persona_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workspaces/{workspace_id}/products": {
       "get": {
         "summary": "Lista produtos de um workspace",
@@ -7960,6 +10239,7 @@
         "tags": [
           "Insights"
         ],
+        "description": "Cria um insight associado ao produto. Evidências são vínculos opcionais adicionados depois via evidence_insight_links.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8652,6 +10932,446 @@
             },
             "in": "path",
             "name": "hypothesis_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/strategic-pillars": {
+      "get": {
+        "summary": "Lista pilares estratégicos vinculados a uma dor",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedStrategicPillar"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/strategic-pillars/{pillar_id}": {
+      "post": {
+        "summary": "Vincula dor ↔ pilar estratégico",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pillar_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PainStrategicPillarLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove vínculo dor ↔ pilar estratégico",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pillar_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/objectives": {
+      "get": {
+        "summary": "Lista objetivos/OKRs vinculados a uma dor",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LinkedObjective"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pains/{pain_id}/objectives/{objective_id}": {
+      "post": {
+        "summary": "Vincula dor ↔ objetivo/OKR",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "objective_id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PainObjectiveLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove vínculo dor ↔ objetivo/OKR",
+        "tags": [
+          "Links"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "pain_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "in": "path",
+            "name": "objective_id",
             "required": true
           }
         ],

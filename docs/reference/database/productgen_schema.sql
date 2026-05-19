@@ -38,7 +38,10 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION current_workspace_id()
 RETURNS uuid AS $$
-  SELECT NULLIF(current_setting('app.current_workspace', true), '')::uuid;
+  SELECT COALESCE(
+    NULLIF(current_setting('app.current_workspace_id', true), '')::uuid,
+    NULLIF(current_setting('app.current_workspace', true), '')::uuid
+  );
 $$ LANGUAGE sql STABLE;
 
 CREATE OR REPLACE FUNCTION current_actor_id()
@@ -114,7 +117,15 @@ CREATE TYPE outcome_status AS ENUM (
 );
 
 CREATE TYPE workspace_role AS ENUM (
-  'owner', 'admin', 'member', 'viewer'
+  'owner', 'admin', 'member', 'viewer', 'guest'
+);
+
+CREATE TYPE product_role AS ENUM (
+  'owner', 'editor', 'viewer', 'none'
+);
+
+CREATE TYPE auth_token_purpose AS ENUM (
+  'verify_email', 'reset_password', 'change_email'
 );
 
 CREATE TYPE attachable_type AS ENUM (
@@ -132,6 +143,8 @@ CREATE TABLE workspaces (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   slug text NOT NULL,
+  created_by_user_id uuid,
+  plan text NOT NULL DEFAULT 'free',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz
@@ -149,6 +162,11 @@ CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email citext NOT NULL,
   name text NOT NULL,
+  password_hash text,
+  email_verified_at timestamptz,
+  avatar_url text,
+  last_login_at timestamptz,
+  mfa_enabled boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz
@@ -161,12 +179,19 @@ CREATE TRIGGER trg_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+ALTER TABLE workspaces
+  ADD CONSTRAINT fk_workspaces_created_by_user
+  FOREIGN KEY (created_by_user_id) REFERENCES users(id);
+
 
 CREATE TABLE workspace_members (
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   user_id uuid NOT NULL REFERENCES users(id),
   role workspace_role NOT NULL DEFAULT 'member',
+  invited_by_user_id uuid REFERENCES users(id),
   joined_at timestamptz NOT NULL DEFAULT now(),
+  last_accessed_at timestamptz,
+  onboarded_at timestamptz,
   removed_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (workspace_id, user_id)
@@ -175,6 +200,97 @@ CREATE TABLE workspace_members (
 CREATE TRIGGER trg_workspace_members_updated_at
   BEFORE UPDATE ON workspace_members
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_workspace_members_user_accessed
+  ON workspace_members(user_id, last_accessed_at DESC NULLS LAST)
+  WHERE removed_at IS NULL;
+
+CREATE TABLE workspace_teams (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  code text NOT NULL,
+  name text NOT NULL,
+  description text,
+  color text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz
+);
+
+CREATE UNIQUE INDEX idx_workspace_teams_workspace_code
+  ON workspace_teams(workspace_id, code) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_workspace_teams_workspace_id
+  ON workspace_teams(workspace_id, id);
+CREATE INDEX idx_workspace_teams_workspace
+  ON workspace_teams(workspace_id) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_workspace_teams_updated_at
+  BEFORE UPDATE ON workspace_teams
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE workspace_team_members (
+  workspace_id uuid NOT NULL,
+  team_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  added_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (team_id, user_id),
+  FOREIGN KEY (workspace_id, team_id)
+    REFERENCES workspace_teams(workspace_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (workspace_id, user_id)
+    REFERENCES workspace_members(workspace_id, user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_workspace_team_members_user
+  ON workspace_team_members(workspace_id, user_id);
+
+CREATE TABLE workspace_team_products (
+  workspace_id uuid NOT NULL,
+  team_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  added_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (team_id, product_id),
+  FOREIGN KEY (workspace_id, team_id)
+    REFERENCES workspace_teams(workspace_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_workspace_team_products_product
+  ON workspace_team_products(workspace_id, product_id);
+
+CREATE TABLE user_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  refresh_token_hash text NOT NULL,
+  user_agent text,
+  ip_address inet,
+  expires_at timestamptz NOT NULL,
+  last_used_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz,
+  revoked_reason text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_user_sessions_refresh_token_hash
+  ON user_sessions(refresh_token_hash);
+CREATE INDEX idx_user_sessions_user_active
+  ON user_sessions(user_id, expires_at DESC)
+  WHERE revoked_at IS NULL;
+
+CREATE TABLE auth_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose auth_token_purpose NOT NULL,
+  token_hash text NOT NULL,
+  payload jsonb NOT NULL DEFAULT '{}',
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_auth_tokens_token_hash
+  ON auth_tokens(token_hash);
+CREATE INDEX idx_auth_tokens_user_purpose
+  ON auth_tokens(user_id, purpose, expires_at DESC)
+  WHERE used_at IS NULL;
 
 
 -- ============================================================================
@@ -395,6 +511,10 @@ CREATE TRIGGER trg_decision_logs_audit
   AFTER INSERT OR UPDATE ON decision_logs
   FOR EACH ROW EXECUTE FUNCTION audit_entity_changes();
 
+CREATE TRIGGER trg_workspace_teams_audit
+  AFTER INSERT OR UPDATE ON workspace_teams
+  FOR EACH ROW EXECUTE FUNCTION audit_entity_changes();
+
 COMMENT ON FUNCTION audit_entity_changes() IS
   'Trigger de auditoria genérico. Pré-requisito: tabela tem coluna workspace_id.
    Detecta colunas status e deleted_at via jsonb. Skip de UPDATEs idempotentes.';
@@ -407,16 +527,26 @@ COMMENT ON FUNCTION audit_entity_changes() IS
 CREATE TABLE products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  slug text,
   name text NOT NULL,
   vision text,
   metadata jsonb NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  archived_at timestamptz,
   deleted_at timestamptz
 );
 
 CREATE INDEX idx_products_workspace
   ON products(workspace_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_products_workspace_id
+  ON products(workspace_id, id);
+CREATE UNIQUE INDEX idx_products_workspace_slug
+  ON products(workspace_id, slug) WHERE slug IS NOT NULL AND deleted_at IS NULL;
+
+ALTER TABLE workspace_team_products
+  ADD CONSTRAINT fk_workspace_team_products_product
+  FOREIGN KEY (workspace_id, product_id) REFERENCES products(workspace_id, id) ON DELETE CASCADE;
 
 CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON products
@@ -426,11 +556,31 @@ CREATE TRIGGER trg_products_audit
   AFTER INSERT OR UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION audit_entity_changes();
 
+CREATE TABLE product_members (
+  product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role product_role NOT NULL,
+  added_by_user_id uuid REFERENCES users(id),
+  added_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (product_id, user_id),
+  CONSTRAINT product_members_role_check CHECK (role IN ('owner', 'editor', 'viewer', 'none'))
+);
+
+CREATE INDEX idx_product_members_user
+  ON product_members(user_id, workspace_id);
+CREATE INDEX idx_product_members_workspace
+  ON product_members(workspace_id);
+CREATE UNIQUE INDEX idx_product_members_owner
+  ON product_members(product_id, user_id)
+  WHERE role = 'owner';
+
 
 CREATE TABLE strategic_pillars (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   name text NOT NULL,
   description text,
   color text,
@@ -442,6 +592,8 @@ CREATE TABLE strategic_pillars (
 
 CREATE INDEX idx_pillars_product
   ON strategic_pillars(product_id, position) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_pillars_product_code
+  ON strategic_pillars(product_id, code);
 
 CREATE TRIGGER trg_pillars_updated_at
   BEFORE UPDATE ON strategic_pillars
@@ -456,11 +608,13 @@ CREATE TABLE objectives (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   title text NOT NULL,
   description text,
   status objective_status NOT NULL DEFAULT 'draft',
   horizon_start date,
   horizon_end date,
+  pillar_id uuid REFERENCES strategic_pillars(id),
   owner_id uuid REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -472,6 +626,8 @@ CREATE INDEX idx_objectives_workspace_status
 
 CREATE INDEX idx_objectives_product
   ON objectives(product_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_objectives_product_code
+  ON objectives(product_id, code);
 
 CREATE TRIGGER trg_objectives_updated_at
   BEFORE UPDATE ON objectives
@@ -486,6 +642,7 @@ CREATE TABLE key_results (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   objective_id uuid NOT NULL REFERENCES objectives(id),
+  code text NOT NULL,
   title text NOT NULL,
   metric_type text,
   baseline numeric,
@@ -499,6 +656,8 @@ CREATE TABLE key_results (
 
 CREATE INDEX idx_kr_objective
   ON key_results(objective_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_kr_objective_code
+  ON key_results(objective_id, code);
 
 CREATE TRIGGER trg_kr_updated_at
   BEFORE UPDATE ON key_results
@@ -516,6 +675,7 @@ CREATE TRIGGER trg_kr_audit
 CREATE TABLE personas (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  code text NOT NULL,
   name text NOT NULL,
   description text,
   segment_size_estimate int,
@@ -527,6 +687,8 @@ CREATE TABLE personas (
 
 CREATE INDEX idx_personas_workspace
   ON personas(workspace_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_personas_workspace_code
+  ON personas(workspace_id, code);
 
 CREATE TRIGGER trg_personas_updated_at
   BEFORE UPDATE ON personas
@@ -545,6 +707,7 @@ CREATE TABLE evidences (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid REFERENCES products(id),
+  code text NOT NULL,
   title text NOT NULL,
   content text NOT NULL,
   source evidence_source NOT NULL,
@@ -565,6 +728,8 @@ CREATE INDEX idx_evidences_workspace_status
   ON evidences(workspace_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_evidences_collected
   ON evidences(workspace_id, collected_at DESC) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_evidences_product_code
+  ON evidences(product_id, code);
 
 CREATE TRIGGER trg_evidences_updated_at
   BEFORE UPDATE ON evidences
@@ -583,7 +748,8 @@ CREATE TRIGGER trg_evidences_audit
 CREATE TABLE insights (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
-  product_id uuid REFERENCES products(id),
+  product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   title text NOT NULL,
   description text NOT NULL,
   confidence_score numeric,
@@ -601,6 +767,8 @@ CREATE TABLE insights (
 CREATE INDEX idx_insights_workspace ON insights(workspace_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_insights_product ON insights(product_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_insights_search ON insights USING gin(search_vector);
+CREATE UNIQUE INDEX idx_insights_product_code
+  ON insights(product_id, code);
 
 CREATE TRIGGER trg_insights_updated_at
   BEFORE UPDATE ON insights
@@ -624,6 +792,7 @@ CREATE TABLE pains (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   parent_pain_id uuid REFERENCES pains(id),
   root_pain_id uuid REFERENCES pains(id),
   title text NOT NULL,
@@ -648,6 +817,8 @@ CREATE INDEX idx_pains_workspace_status
   ON pains(workspace_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_pains_product
   ON pains(product_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_pains_product_code
+  ON pains(product_id, code);
 
 CREATE TRIGGER trg_pains_updated_at
   BEFORE UPDATE ON pains
@@ -678,6 +849,7 @@ CREATE TABLE hypotheses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   title text NOT NULL,
   if_clause text NOT NULL,
   then_clause text NOT NULL,
@@ -700,6 +872,8 @@ CREATE INDEX idx_hypotheses_workspace_status
   ON hypotheses(workspace_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_hypotheses_product
   ON hypotheses(product_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_hypotheses_product_code
+  ON hypotheses(product_id, code);
 CREATE INDEX idx_hypotheses_clone
   ON hypotheses(cloned_from_id) WHERE cloned_from_id IS NOT NULL;
 
@@ -715,7 +889,9 @@ CREATE TRIGGER trg_hypotheses_audit
 CREATE TABLE experiments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  product_id uuid NOT NULL REFERENCES products(id),
   hypothesis_id uuid NOT NULL REFERENCES hypotheses(id),
+  code text NOT NULL,
   title text NOT NULL,
   method experiment_method NOT NULL,
   success_criteria text NOT NULL,
@@ -737,6 +913,8 @@ CREATE TABLE experiments (
 
 CREATE INDEX idx_experiments_hypothesis
   ON experiments(hypothesis_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_experiments_product_code
+  ON experiments(product_id, code);
 CREATE INDEX idx_experiments_workspace_status
   ON experiments(workspace_id, status) WHERE deleted_at IS NULL;
 
@@ -757,6 +935,7 @@ CREATE TABLE roadmap_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   product_id uuid NOT NULL REFERENCES products(id),
+  code text NOT NULL,
   parent_id uuid REFERENCES roadmap_items(id),
   path ltree,
   type delivery_type NOT NULL,
@@ -803,6 +982,8 @@ CREATE INDEX idx_roadmap_items_workspace_status
   ON roadmap_items(workspace_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roadmap_items_product
   ON roadmap_items(product_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roadmap_items_product_code
+  ON roadmap_items(product_id, code);
 CREATE INDEX idx_roadmap_items_parent
   ON roadmap_items(parent_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roadmap_items_external
@@ -826,6 +1007,7 @@ CREATE TABLE outcomes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   roadmap_item_id uuid NOT NULL REFERENCES roadmap_items(id),
+  code text NOT NULL,
   key_result_id uuid REFERENCES key_results(id),
   pain_id uuid REFERENCES pains(id),
   hypothesized_impact text NOT NULL,
@@ -845,6 +1027,8 @@ CREATE INDEX idx_outcomes_workspace_status
   ON outcomes(workspace_id, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_outcomes_roadmap_item
   ON outcomes(roadmap_item_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_outcomes_code
+  ON outcomes(code) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_outcomes_updated_at
   BEFORE UPDATE ON outcomes
@@ -973,6 +1157,26 @@ CREATE TABLE pain_hypothesis_links (
   PRIMARY KEY (pain_id, hypothesis_id)
 );
 CREATE INDEX idx_pain_hyp_hyp ON pain_hypothesis_links(hypothesis_id);
+
+
+CREATE TABLE pain_strategic_pillar_links (
+  pain_id uuid NOT NULL REFERENCES pains(id) ON DELETE CASCADE,
+  pillar_id uuid NOT NULL REFERENCES strategic_pillars(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (pain_id, pillar_id)
+);
+CREATE INDEX idx_pain_pillar_pillar ON pain_strategic_pillar_links(pillar_id);
+
+
+CREATE TABLE pain_objective_links (
+  pain_id uuid NOT NULL REFERENCES pains(id) ON DELETE CASCADE,
+  objective_id uuid NOT NULL REFERENCES objectives(id) ON DELETE CASCADE,
+  workspace_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (pain_id, objective_id)
+);
+CREATE INDEX idx_pain_objective_objective ON pain_objective_links(objective_id);
 
 
 CREATE TABLE hypothesis_roadmap_links (
@@ -1141,6 +1345,18 @@ CREATE TRIGGER trg_validate_pain_hypothesis_links
   BEFORE INSERT ON pain_hypothesis_links
   FOR EACH ROW EXECUTE FUNCTION validate_link_same_workspace(
     'pains', 'pain_id', 'hypotheses', 'hypothesis_id'
+  );
+
+CREATE TRIGGER trg_validate_pain_strategic_pillar_links
+  BEFORE INSERT ON pain_strategic_pillar_links
+  FOR EACH ROW EXECUTE FUNCTION validate_link_same_workspace(
+    'pains', 'pain_id', 'strategic_pillars', 'pillar_id'
+  );
+
+CREATE TRIGGER trg_validate_pain_objective_links
+  BEFORE INSERT ON pain_objective_links
+  FOR EACH ROW EXECUTE FUNCTION validate_link_same_workspace(
+    'pains', 'pain_id', 'objectives', 'objective_id'
   );
 
 CREATE TRIGGER trg_validate_hypothesis_roadmap_links
@@ -1481,10 +1697,12 @@ DECLARE
   t text;
   policy_name text;
   domain_tables text[] := ARRAY[
+    'workspace_teams', 'workspace_team_members', 'workspace_team_products',
     'products', 'strategic_pillars', 'objectives', 'key_results',
     'personas', 'evidences', 'pains', 'hypotheses', 'experiments',
     'roadmap_items', 'outcomes', 'assets',
-    'evidence_pain_links', 'pain_persona_links', 'pain_hypothesis_links',
+    'evidence_pain_links', 'evidence_insight_links', 'pain_persona_links', 'pain_hypothesis_links',
+    'pain_strategic_pillar_links', 'pain_objective_links',
     'hypothesis_roadmap_links', 'roadmap_pillar_links',
     'roadmap_key_result_links', 'asset_attachments'
   ];

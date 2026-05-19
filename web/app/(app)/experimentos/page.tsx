@@ -3,11 +3,14 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useDiscovery } from "@/lib/discovery-store";
 import { useProducts } from "@/lib/products-context";
 import {
   experimentStatusConfig,
   experimentResultConfig,
+  getExperimentDisplayId,
+  getHypothesisDisplayId,
 } from "@/lib/discovery-data";
 import { PageHeader, EmptyState, formatDateOnly } from "@/components/shared/crud-ui";
 import { Avatar } from "@/components/shared/avatar";
@@ -28,8 +31,13 @@ export default function ExperimentosPage() {
         title="Experimentos"
         count={`${items.length} experimentos`}
         onCreate={() => {
-          const e = createExperiment(currentProduct.id);
-          router.push(`/experimentos/${e.id}?new=1`);
+          void createExperiment(currentProduct.id)
+            .then((e) => {
+              router.push(`/experimentos/${e.id}?new=1`);
+            })
+            .catch((error) => {
+              toast.error(error instanceof Error ? error.message : "Não foi possível criar o experimento");
+            });
         }}
         createLabel="Novo experimento"
       />
@@ -71,7 +79,9 @@ export default function ExperimentosPage() {
                       style={{ borderColor: "var(--bg-muted-2)" }}
                       onClick={() => router.push(`/experimentos/${e.id}`)}
                     >
-                      <td className="px-4 py-3 font-mono text-[12px] text-[var(--fg-subtle)]">{e.id}</td>
+                      <td className="px-4 py-3 font-mono text-[12px] text-[var(--fg-subtle)]">
+                        {getExperimentDisplayId(e) ?? "Experimento"}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-[var(--fg)]">{e.title}</div>
                         <div className="mt-0.5 line-clamp-1 text-[13px] text-[var(--fg-faint)]">
@@ -85,7 +95,7 @@ export default function ExperimentosPage() {
                             onClick={(ev) => ev.stopPropagation()}
                             className="font-mono text-[12px] text-[var(--primary)] hover:underline"
                           >
-                            {hyp.id}
+                            {getHypothesisDisplayId(hyp) ?? "Hipótese"}
                           </Link>
                         ) : (
                           <span className="text-[var(--border-strong)]">—</span>

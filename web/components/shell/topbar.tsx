@@ -1,10 +1,15 @@
-import { Search, Plus, Bell, ChevronDown } from "lucide-react";
+"use client";
+
+import { Search, Bell } from "lucide-react";
 import { Avatar } from "@/components/shared/avatar";
-import { currentUser } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
 import { ProductSwitcher } from "./product-switcher";
 import { ThemeToggle } from "./theme-toggle";
 
 export function Topbar() {
+  const { user } = useAuth();
+  const name = user?.name ?? "Usuário";
+
   return (
     <header
       className="flex h-14 items-center gap-4 border-b px-6"
@@ -23,23 +28,8 @@ export function Topbar() {
             className="flex-1 bg-transparent text-sm outline-none"
             style={{ color: "var(--fg)" }}
           />
-          <kbd
-            className="rounded px-1.5 py-0.5 text-[11px] font-medium"
-            style={{ backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--fg-subtle)" }}
-          >
-            ⌘K
-          </kbd>
         </div>
       </div>
-
-      <button
-        className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ backgroundColor: "var(--primary)" }}
-      >
-        <Plus size={16} />
-        Novo
-        <ChevronDown size={14} />
-      </button>
 
       <button
         className="relative rounded-lg p-2 transition-colors hover:bg-[var(--bg-muted)]"
@@ -54,7 +44,19 @@ export function Topbar() {
 
       <ThemeToggle />
 
-      <Avatar initials={currentUser.initials} color="var(--primary)" size={32} />
+      <Avatar initials={makeInitials(name)} color="var(--primary)" size={32} />
     </header>
+  );
+}
+
+function makeInitials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "US"
   );
 }

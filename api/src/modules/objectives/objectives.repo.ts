@@ -9,25 +9,28 @@ export interface Objective {
   id: string;
   workspace_id: string;
   product_id: string;
+  code: string;
   title: string;
   description: string | null;
   status: ObjectiveStatus;
   horizon_start: string | null;
   horizon_end: string | null;
+  pillar_id: string | null;
   owner_id: string | null;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
 }
 
-const SELECT_COLUMNS = `id, workspace_id, product_id, title, description, status,
-  horizon_start, horizon_end, owner_id, created_at, updated_at, deleted_at`;
+const SELECT_COLUMNS = `id, workspace_id, product_id, code, title, description, status,
+  horizon_start, horizon_end, pillar_id, owner_id, created_at, updated_at, deleted_at`;
 
 const UPDATABLE_FIELDS = [
   'title',
   'description',
   'horizon_start',
   'horizon_end',
+  'pillar_id',
   'owner_id',
 ] as const;
 type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
@@ -73,22 +76,41 @@ export async function createObjective(
   client: PoolClient,
   data: CreateObjectiveInput & { workspace_id: string; product_id: string },
 ): Promise<Objective> {
+  const code = await nextObjectiveCode(client, data.product_id);
   const result = await client.query<Objective>(
     `INSERT INTO objectives (
-       workspace_id, product_id, title, description, horizon_start, horizon_end, owner_id
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       workspace_id, product_id, code, title, description, horizon_start, horizon_end, pillar_id, owner_id
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${SELECT_COLUMNS}`,
     [
       data.workspace_id,
       data.product_id,
+      code,
       data.title,
       data.description ?? null,
       data.horizon_start ?? null,
       data.horizon_end ?? null,
+      data.pillar_id ?? null,
       data.owner_id ?? null,
     ],
   );
   return result.rows[0];
+}
+
+async function nextObjectiveCode(client: PoolClient, productId: string): Promise<string> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+    `objectives:${productId}:code`,
+  ]);
+  const result = await client.query<{ code: string }>(
+    `SELECT code FROM objectives
+     WHERE product_id = $1 AND code ~ '^OKR-[0-9]+$'
+     ORDER BY (substring(code from 5))::int DESC
+     LIMIT 1`,
+    [productId],
+  );
+  const last = result.rows[0]?.code;
+  const next = last ? Number.parseInt(last.slice(4), 10) + 1 : 1;
+  return `OKR-${String(next).padStart(2, '0')}`;
 }
 
 export async function updateObjective(

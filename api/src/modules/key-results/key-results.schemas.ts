@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 export const createKeyResultSchema = z.object({
   title: z.string().min(3, 'Título deve ter pelo menos 3 caracteres').max(200),
-  metric_type: z.string().max(100).optional(),
-  baseline: z.number().optional(),
-  target: z.number().optional(),
-  current_value: z.number().optional(),
-  unit: z.string().max(50).optional(),
+  metric_type: z.string().max(100).nullable().optional(),
+  baseline: z.number().nullable().optional(),
+  target: z.number().nullable().optional(),
+  current_value: z.number().nullable().optional(),
+  unit: z.string().max(50).nullable().optional(),
 });
 
 export const updateKeyResultSchema = z

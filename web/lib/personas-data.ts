@@ -4,6 +4,8 @@ export type DigitalMaturity = "baixa" | "media" | "alta";
 
 export interface Persona {
   id: string;
+  apiId?: string;
+  code?: string;
   name: string;
   role: string;
   age?: number;
@@ -57,6 +59,10 @@ export const avatarOptions: AvatarOption[] = seeds.map((s) => ({
 
 export function getAvatar(id?: string): AvatarOption {
   return avatarOptions.find((a) => a.id === id) ?? avatarOptions[0];
+}
+
+export function getPersonaDisplayId(persona: Pick<Persona, "code" | "id">): string {
+  return persona.code ?? persona.id;
 }
 
 export const digitalMaturityLabel: Record<DigitalMaturity, string> = {

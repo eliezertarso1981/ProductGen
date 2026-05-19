@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-import { statusConfig, type Pain } from "@/lib/dores-data";
+import { getPainDisplayId, statusConfig, type Pain } from "@/lib/dores-data";
 import { Avatar } from "@/components/shared/avatar";
 import { SeverityDots } from "./severity-dots";
 import { PersonaStack } from "./persona-chip";
@@ -31,6 +31,7 @@ export function PainList({ pains }: { pains: Pain[] }) {
             const cfg = statusConfig[p.status];
             const muted = p.status === "descartada";
             const Icon = p.status === "validada" ? CheckCircle2 : AlertCircle;
+            const displayId = getPainDisplayId(p);
             return (
               <tr
                 key={p.id}
@@ -40,7 +41,7 @@ export function PainList({ pains }: { pains: Pain[] }) {
                 <td className="px-4 py-3 font-mono text-[12px]" style={{ color: "var(--fg-subtle)" }}>
                   <Link href={`/dores/${p.id}`} className="inline-flex items-center gap-1.5 hover:underline">
                     <Icon size={13} color={p.status === "validada" ? "var(--success)" : undefined} />
-                    {p.id}
+                    {displayId ?? "Dor"}
                   </Link>
                 </td>
                 <td className="px-4 py-3">

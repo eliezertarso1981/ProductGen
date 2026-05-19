@@ -12,6 +12,7 @@ import {
   SplitPainInput,
 } from './pains.schemas';
 import * as repo from './pains.repo';
+import * as productsRepo from '../products/products.repo';
 
 export async function listPains(workspaceId: string, actorId: string, productId: string) {
   return withWorkspaceTx(pool, workspaceId, actorId, (client) =>
@@ -49,9 +50,15 @@ export async function updatePain(
   input: UpdatePainInput,
 ) {
   try {
-    const pain = await withWorkspaceTx(pool, workspaceId, actorId, (client) =>
-      repo.updatePain(client, id, input),
-    );
+    const pain = await withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
+      if (input.product_id) {
+        const targetProduct = await productsRepo.findProductById(client, input.product_id);
+        if (!targetProduct || targetProduct.workspace_id !== workspaceId) {
+          throw new AppError(404, 'NOT_FOUND', 'Produto destino não encontrado');
+        }
+      }
+      return repo.updatePain(client, id, input);
+    });
     if (!pain) throw new AppError(404, 'NOT_FOUND', 'Dor não encontrada');
     return pain;
   } catch (err) {
