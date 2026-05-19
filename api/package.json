@@ -14,7 +14,8 @@
     "openapi:export": "tsx src/docs/export-openapi.ts ../docs/static/openapi/productgen.json",
     "openapi:check": "tsx scripts/check-openapi-sync.ts",
     "db:schema": "tsx scripts/apply-schema.ts",
-    "db:seed": "tsx scripts/apply-schema.ts --seed"
+    "db:seed": "tsx scripts/apply-schema.ts --seed",
+    "jwt:keys": "tsx scripts/generate-jwt-keys.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

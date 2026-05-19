@@ -54,3 +54,26 @@ O build Docker pode passar e o deploy falhar se o processo **não escuta** na po
    - Opcional: `DATABASE_SSL=true` (padrão `true` em production)
 4. **Schema do banco**: com `DATABASE_PUBLIC_URL`, rode `npm run db:schema` localmente uma vez.
 5. **Postgres SSL**: em production a API usa SSL no pool (`rejectUnauthorized: false`). Erros transitentes no pool **não** derrubam mais o processo; `/health` continua respondendo.
+
+## Troubleshooting — `pkcs8 must be PKCS#8 formatted string`
+
+A `JWT_PRIVATE_KEY` no Railway está em formato errado (comum: chave `BEGIN RSA PRIVATE KEY`, PEM multiline colado errado, ou aspas extras).
+
+1. No seu PC, gere chaves novas (PKCS#8 + SPKI):
+
+```bash
+cd api
+npm run jwt:keys
+```
+
+2. Copie **cada linha inteira** (`JWT_PRIVATE_KEY=...` e `JWT_PUBLIC_KEY=...`) para **Variables** do serviço API.
+3. **Não** envolva o valor em aspas duplas no painel.
+4. O valor deve conter `\n` literais entre as partes do PEM, por exemplo:
+   `-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----`
+5. Apague as variáveis antigas, cole as novas, **Redeploy**.
+
+Headers corretos:
+- Privada: `-----BEGIN PRIVATE KEY-----` (PKCS#8)
+- Pública: `-----BEGIN PUBLIC KEY-----` (SPKI)
+
+Erro `DATABASE_URL: Required` → adicione `DATABASE_URL=${{NomeDoServicoPostgres.DATABASE_URL}}`.
