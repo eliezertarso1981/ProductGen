@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyReply } from 'fastify';
-import { requireAuth, requireAuthSession } from '../../auth/middleware';
+import { requireAuthSession } from '../../auth/middleware';
 import { AppError } from '../../shared/errors';
 import { pool } from '../../db/pool';
 import { PLAN_CATALOG } from '../../config/plans';

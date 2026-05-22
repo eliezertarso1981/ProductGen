@@ -1527,6 +1527,19 @@
               "guest"
             ]
           },
+          "job_function": {
+            "type": "string",
+            "enum": [
+              "CEO",
+              "CPO",
+              "GPM",
+              "PM",
+              "PD",
+              "UX",
+              "PO"
+            ],
+            "nullable": true
+          },
           "joined_at": {
             "type": "string",
             "format": "date-time"
@@ -1572,14 +1585,24 @@
               "guest"
             ],
             "nullable": true
+          },
+          "job_function": {
+            "type": "string",
+            "enum": [
+              "CEO",
+              "CPO",
+              "GPM",
+              "PM",
+              "PD",
+              "UX",
+              "PO"
+            ],
+            "nullable": true
           }
         }
       },
       "UpdateWorkspaceMemberRequest": {
         "type": "object",
-        "required": [
-          "role"
-        ],
         "properties": {
           "role": {
             "type": "string",
@@ -1590,6 +1613,19 @@
               "viewer",
               "guest"
             ]
+          },
+          "job_function": {
+            "type": "string",
+            "enum": [
+              "CEO",
+              "CPO",
+              "GPM",
+              "PM",
+              "PD",
+              "UX",
+              "PO"
+            ],
+            "nullable": true
           }
         }
       },
@@ -4638,6 +4674,106 @@
     },
     "/auth/me": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/email-available": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/auth/onboarding-status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/workspaces/slug-available": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/workspaces": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/users/me": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/plans": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/workspaces/{id}/plan": {
+      "patch": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/leads/enterprise": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/onboarding/complete": {
+      "post": {
         "responses": {
           "200": {
             "description": "Default Response"

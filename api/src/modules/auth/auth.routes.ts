@@ -11,7 +11,7 @@ import { pool } from '../../db/pool';
 import { AppError } from '../../shared/errors';
 import { authRouteSchemas } from '../../docs/route-docs';
 import { config } from '../../config/env';
-import { requireAuth, requireAuthSession } from '../../auth/middleware';
+import { requireAuthSession } from '../../auth/middleware';
 import { withWorkspaceTx } from '../../db/tx';
 import { getEffectivePermissions } from '../../auth/permissions';
 
