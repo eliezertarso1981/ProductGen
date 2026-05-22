@@ -72,6 +72,11 @@ export async function setup() {
   const schemaPath = join(process.cwd(), '..', 'docs', 'reference', 'database', 'productgen_schema.sql');
   const schema = readFileSync(schemaPath, 'utf-8');
   await client.query(schema);
+
+  const migrationPath = join(process.cwd(), '..', 'DB', 'migrations', '002_onboarding.sql');
+  const migration = readFileSync(migrationPath, 'utf-8');
+  await client.query(migration);
+
   await client.query(`
     CREATE ROLE productgen_app LOGIN PASSWORD 'postgres';
     GRANT USAGE ON SCHEMA public TO productgen_app;

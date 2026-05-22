@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createProductSchema = z.object({
   name: z.string().min(3).max(200),
-  vision: z.string().min(1).max(2000).optional(),
+  vision: z.string().min(1).max(2000).optional().nullable(),
   metadata: z.record(z.any()).optional(),
 });
 

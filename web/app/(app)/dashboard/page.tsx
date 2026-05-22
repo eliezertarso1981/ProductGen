@@ -33,7 +33,7 @@ export default function DashboardPage() {
       if (!productsReady) return;
       if (!isProductgenApiConfigured() || !isRemoteBacked) {
         setLoading(false);
-        setError("Dashboard Analytics exige a API real do ProductGen configurada.");
+        setError("Dashboard Analytics exige a API real do ProductDiscovery configurada.");
         return;
       }
 
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         <EmptyState
           icon={BarChart3}
           title="Carregando analytics"
-          description="Buscando KPIs, funil e sinais de saúde na API do ProductGen."
+          description="Buscando KPIs, funil e sinais de saúde na API do ProductDiscovery."
         />
       </div>
     );

@@ -120,6 +120,10 @@ CREATE TYPE workspace_role AS ENUM (
   'owner', 'admin', 'member', 'viewer', 'guest'
 );
 
+CREATE TYPE workspace_job_function AS ENUM (
+  'CEO', 'CPO', 'GPM', 'PM', 'PD', 'UX', 'PO'
+);
+
 CREATE TYPE product_role AS ENUM (
   'owner', 'editor', 'viewer', 'none'
 );
@@ -145,6 +149,10 @@ CREATE TABLE workspaces (
   slug text NOT NULL,
   created_by_user_id uuid,
   plan text NOT NULL DEFAULT 'free',
+  logo_url text,
+  company_size text,
+  country_code char(2),
+  status text NOT NULL DEFAULT 'active',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at timestamptz
@@ -163,6 +171,7 @@ CREATE TABLE users (
   email citext NOT NULL,
   name text NOT NULL,
   password_hash text,
+  job_title text,
   email_verified_at timestamptz,
   avatar_url text,
   last_login_at timestamptz,
@@ -188,6 +197,7 @@ CREATE TABLE workspace_members (
   workspace_id uuid NOT NULL REFERENCES workspaces(id),
   user_id uuid NOT NULL REFERENCES users(id),
   role workspace_role NOT NULL DEFAULT 'member',
+  job_function workspace_job_function,
   invited_by_user_id uuid REFERENCES users(id),
   joined_at timestamptz NOT NULL DEFAULT now(),
   last_accessed_at timestamptz,
@@ -291,6 +301,90 @@ CREATE UNIQUE INDEX idx_auth_tokens_token_hash
 CREATE INDEX idx_auth_tokens_user_purpose
   ON auth_tokens(user_id, purpose, expires_at DESC)
   WHERE used_at IS NULL;
+
+CREATE TABLE email_verification_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_email_verification_tokens_hash
+  ON email_verification_tokens(token_hash);
+CREATE INDEX idx_email_verification_tokens_user_active
+  ON email_verification_tokens(user_id, expires_at DESC)
+  WHERE used_at IS NULL;
+
+CREATE TABLE enterprise_leads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid REFERENCES workspaces(id) ON DELETE SET NULL,
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  contact_name text NOT NULL,
+  contact_email text NOT NULL,
+  contact_phone text,
+  message text,
+  status text NOT NULL DEFAULT 'new',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_enterprise_leads_updated_at
+  BEFORE UPDATE ON enterprise_leads
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_enterprise_leads_workspace
+  ON enterprise_leads(workspace_id)
+  WHERE workspace_id IS NOT NULL;
+
+
+-- ============================================================================
+-- SEÇÃO 4b: CONTROLE DE USO POR PLANO (workspace limits)
+-- ============================================================================
+-- Limites vêm de workspaces.plan + api/src/config/plans.ts.
+-- Produtos e storage: totais acumulados (sem reset mensal).
+-- PRDs auto: contador mensal (UTC); period_start = primeiro dia do mês.
+
+CREATE TABLE workspace_product_usage (
+  workspace_id uuid PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  product_count int NOT NULL DEFAULT 0 CHECK (product_count >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_workspace_product_usage_updated_at
+  BEFORE UPDATE ON workspace_product_usage
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE workspace_storage_usage (
+  workspace_id uuid PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  storage_bytes_used bigint NOT NULL DEFAULT 0 CHECK (storage_bytes_used >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_workspace_storage_usage_updated_at
+  BEFORE UPDATE ON workspace_storage_usage
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE workspace_prd_usage (
+  workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  period_start date NOT NULL,
+  auto_prds_generated int NOT NULL DEFAULT 0 CHECK (auto_prds_generated >= 0),
+  tokens_total bigint NOT NULL DEFAULT 0 CHECK (tokens_total >= 0),
+  cost_usd_total numeric(10, 4) NOT NULL DEFAULT 0 CHECK (cost_usd_total >= 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, period_start),
+  CONSTRAINT workspace_prd_usage_period_start_first_of_month
+    CHECK (period_start = date_trunc('month', period_start::timestamptz)::date)
+);
+
+CREATE TRIGGER trg_workspace_prd_usage_updated_at
+  BEFORE UPDATE ON workspace_prd_usage
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_workspace_prd_usage_period
+  ON workspace_prd_usage(period_start DESC);
 
 
 -- ============================================================================
@@ -1719,6 +1813,24 @@ BEGIN
   END LOOP;
 END $$;
 
+ALTER TABLE workspace_product_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_product_usage FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workspace_product_usage_workspace_isolation ON workspace_product_usage;
+CREATE POLICY workspace_product_usage_workspace_isolation ON workspace_product_usage
+  USING (workspace_id = current_workspace_id());
+
+ALTER TABLE workspace_storage_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_storage_usage FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workspace_storage_usage_workspace_isolation ON workspace_storage_usage;
+CREATE POLICY workspace_storage_usage_workspace_isolation ON workspace_storage_usage
+  USING (workspace_id = current_workspace_id());
+
+ALTER TABLE workspace_prd_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workspace_prd_usage FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workspace_prd_usage_workspace_isolation ON workspace_prd_usage;
+CREATE POLICY workspace_prd_usage_workspace_isolation ON workspace_prd_usage
+  USING (workspace_id = current_workspace_id());
+
 ALTER TABLE entity_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entity_events FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS entity_events_workspace_isolation ON entity_events;
@@ -1732,6 +1844,15 @@ CREATE POLICY entity_events_workspace_isolation ON entity_events
 
 COMMENT ON TABLE workspaces IS 
   'Tenants do sistema. Isolamento garantido via RLS nas tabelas de domínio.';
+
+COMMENT ON TABLE workspace_product_usage IS
+  'Contador de produtos ativos por workspace (não mensal). Limite: plans.max_products.';
+
+COMMENT ON TABLE workspace_storage_usage IS
+  'Bytes acumulados em storage por workspace (não mensal). Limite: plans.max_storage_bytes.';
+
+COMMENT ON TABLE workspace_prd_usage IS
+  'PRDs auto-gerados por mês (UTC, period_start = dia 1). Limite: plans.max_auto_prds_per_month.';
 
 COMMENT ON TABLE entity_events IS
   'Log de auditoria/histórico (event sourcing leve, log derivado). 

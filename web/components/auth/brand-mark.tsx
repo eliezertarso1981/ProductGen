@@ -1,18 +1,33 @@
 import type { AuthTheme } from "@/lib/theme";
-import { palette } from "@/lib/theme";
+import { LOGO_PATHS } from "@/lib/brand";
 
-export function BrandMark({ theme = "light" }: { theme?: AuthTheme }) {
-  const p = palette[theme];
+type BrandMarkProps = {
+  theme?: AuthTheme;
+  /** Apenas ícone (barras), sem wordmark. */
+  iconOnly?: boolean;
+};
+
+export function BrandMark({ theme = "light", iconOnly = false }: BrandMarkProps) {
+  const src = iconOnly
+    ? LOGO_PATHS.icon
+    : theme === "dark"
+      ? LOGO_PATHS.wordmarkMono
+      : LOGO_PATHS.wordmark;
+
+  const invertOnDark = theme === "dark" && !iconOnly;
+
   return (
-    <div className="inline-flex items-center gap-2.5">
-      <svg width="36" height="32" viewBox="0 0 36 32" fill="none" aria-hidden>
-        <rect x="0" y="2" width="22" height="6" rx="3" fill="#5eead4" />
-        <rect x="0" y="12" width="32" height="6" rx="3" fill="var(--primary)" />
-        <rect x="0" y="22" width="26" height="6" rx="3" fill="#0d9488" />
-      </svg>
-      <span className="text-[20px] font-semibold tracking-tight" style={{ color: p.textPrimary }}>
-        Product<span style={{ color: "var(--primary)" }}>Gen</span>
-      </span>
+    <div
+      className={`inline-flex items-center ${invertOnDark ? "brightness-0 invert" : ""}`}
+      aria-label="ProductDiscovery"
+    >
+      <img
+        src={src}
+        alt=""
+        className={iconOnly ? "h-8 w-8" : "h-8 w-auto max-w-[220px]"}
+        height={32}
+        decoding="async"
+      />
     </div>
   );
 }

@@ -64,7 +64,7 @@ export function RecentActivity({ activity }: { activity: Activity[] }) {
           const mappedType = entityTypeMap[item.entity_type] ?? "roadmap";
           const cfg = entityConfig[mappedType];
           const Icon = cfg.icon;
-          const actor = item.actor_name ?? "ProductGen";
+          const actor = item.actor_name ?? "ProductDiscovery";
           return (
             <li
               key={`${item.entity_type}-${item.code ?? index}-${item.occurred_at}`}

@@ -41,7 +41,7 @@ export function AuthShell({ children, showFooter = true }: AuthShellProps) {
               className="mx-auto mt-10 hidden w-full max-w-sm items-center justify-between text-xs md:flex"
               style={{ color: p.textSecondary }}
             >
-              <span>© 2025 ProductGen, Inc.</span>
+              <span>© 2025 ProductDiscovery, Inc.</span>
               <div className="flex gap-5">
                 <a href="#" className="hover:opacity-80">
                   Privacidade

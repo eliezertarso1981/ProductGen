@@ -13,15 +13,14 @@ import {
   getHypothesisDisplayId,
   hypothesisStatusConfig,
   hypothesisStatuses,
+  toStatusBoardColumns,
+  type Hypothesis,
   type HypothesisStatus,
 } from "@/lib/discovery-data";
-import {
-  PageHeader,
-  EmptyState,
-  ListingToolbar,
-  formatDate,
-  type ListingView,
-} from "@/components/shared/crud-ui";
+import { PageHeader, EmptyState, formatDate, type ListingView } from "@/components/shared/crud-ui";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
+import { StatusBoard } from "@/components/discovery/status-board";
+import { cycleFilterValue } from "@/components/discovery/filter-helpers";
 import { Avatar } from "@/components/shared/avatar";
 import { EntityDrawer } from "@/components/shared/entity-drawer";
 import { HypothesisDetailContent } from "@/components/hipoteses/hypothesis-detail-content";
@@ -31,10 +30,10 @@ export default function HipotesesPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { currentProduct } = useProducts();
-  const { hypotheses, createHypothesis, experimentsByHypothesis } = useDiscovery();
+  const { hypotheses, createHypothesis, updateHypothesis, experimentsByHypothesis } = useDiscovery();
   const { getPain } = useDores();
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<ListingView>("list");
+  const [view, setView] = useState<ListingView>("board");
   const [statusFilter, setStatusFilter] = useState<"all" | HypothesisStatus>("all");
   const [originFilter, setOriginFilter] = useState<"all" | "linked" | "unlinked">("all");
   const selectedId = searchParams.get("detail");
@@ -72,6 +71,11 @@ export default function HipotesesPage() {
     params.set("detail", id);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
+  const handleMove = (id: string, status: HypothesisStatus) => {
+    updateHypothesis(id, { status });
+    toast.success(`Movida para "${hypothesisStatusConfig[status].label}"`);
+  };
+  const boardColumns = toStatusBoardColumns(hypothesisStatuses, hypothesisStatusConfig);
 
   return (
     <div className="px-6 py-5">
@@ -91,15 +95,47 @@ export default function HipotesesPage() {
         createLabel="Nova hipótese"
       />
 
-      <HypothesesToolbar
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        originFilter={originFilter}
-        onOriginFilterChange={setOriginFilter}
+      <DiscoveryFilterBar
+        chips={[
+          {
+            label: "Status",
+            value:
+              statusFilter === "all" ? undefined : hypothesisStatusConfig[statusFilter].label,
+            active: statusFilter !== "all",
+            onClick: () =>
+              setStatusFilter(cycleFilterValue(statusFilter, hypothesisStatuses)),
+          },
+          {
+            label: "Origem",
+            value:
+              originFilter === "all"
+                ? undefined
+                : originFilter === "linked"
+                  ? "Com dor"
+                  : "Sem dor",
+            active: originFilter !== "all",
+            onClick: () =>
+              setOriginFilter(
+                originFilter === "all" ? "linked" : originFilter === "linked" ? "unlinked" : "all",
+              ),
+          },
+        ]}
         search={search}
         onSearchChange={setSearch}
-        view={view}
+        views={[
+          { value: "list", label: "lista" },
+          { value: "grid", label: "cards" },
+          { value: "board", label: "kanban" },
+        ]}
+        activeView={view}
         onViewChange={setView}
+        resultCount={visibleItems.length}
+        hasActiveFilters={statusFilter !== "all" || originFilter !== "all" || search.trim() !== ""}
+        onClear={() => {
+          setSearch("");
+          setStatusFilter("all");
+          setOriginFilter("all");
+        }}
       />
 
       <div className="mt-5">
@@ -107,6 +143,38 @@ export default function HipotesesPage() {
           <EmptyState
             title={items.length === 0 ? "Nenhuma hipótese ainda" : "Nenhuma hipótese encontrada"}
             hint={items.length === 0 ? "Hipóteses nascem a partir de uma dor. Comece criando uma." : "Ajuste a busca para ver mais resultados."}
+          />
+        ) : view === "board" ? (
+          <StatusBoard<Hypothesis, HypothesisStatus>
+            columns={boardColumns}
+            items={visibleItems}
+            getItemId={(h) => h.id}
+            getItemStatus={(h) => h.status}
+            onSelect={(h) => openDetail(h.id)}
+            onMove={handleMove}
+            groupName="hypotheses"
+            renderCard={(h) => {
+              const pain = h.painId ? getPain(h.painId) : undefined;
+              const expCount = experimentsByHypothesis(h.id).length;
+              return (
+                <>
+                  <div className="flex items-center justify-between font-mono text-[11px] text-[var(--fg-faint)]">
+                    <span>{getHypothesisDisplayId(h) ?? "Hipótese"}</span>
+                    <span>{formatDate(h.updatedAt)}</span>
+                  </div>
+                  <div className="mt-1 font-semibold text-[var(--fg)]">{h.title}</div>
+                  <p className="mt-1 line-clamp-2 text-[12px] text-[var(--fg-subtle)]">{h.statement}</p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--fg-muted)]">
+                    <span className="font-mono">{expCount} exp.</span>
+                    {pain ? (
+                      <span className="font-mono text-[var(--primary)]">{getPainDisplayId(pain) ?? "Dor"}</span>
+                    ) : (
+                      <span>Sem dor</span>
+                    )}
+                  </div>
+                </>
+              );
+            }}
           />
         ) : (
           view === "grid" ? (
@@ -250,60 +318,3 @@ export default function HipotesesPage() {
   );
 }
 
-function HypothesesToolbar({
-  statusFilter,
-  onStatusFilterChange,
-  originFilter,
-  onOriginFilterChange,
-  search,
-  onSearchChange,
-  view,
-  onViewChange,
-}: {
-  statusFilter: "all" | HypothesisStatus;
-  onStatusFilterChange: (value: "all" | HypothesisStatus) => void;
-  originFilter: "all" | "linked" | "unlinked";
-  onOriginFilterChange: (value: "all" | "linked" | "unlinked") => void;
-  search: string;
-  onSearchChange: (value: string) => void;
-  view: ListingView;
-  onViewChange: (value: ListingView) => void;
-}) {
-  return (
-    <ListingToolbar
-      filters={[
-        {
-          label: "Status",
-          value:
-            statusFilter === "all"
-              ? "Todos"
-              : hypothesisStatusConfig[statusFilter].label,
-          active: statusFilter !== "all",
-          onClick: () => {
-            const current = statusFilter === "all" ? -1 : hypothesisStatuses.indexOf(statusFilter);
-            const next = current + 1 >= hypothesisStatuses.length ? "all" : hypothesisStatuses[current + 1];
-            onStatusFilterChange(next);
-          },
-        },
-        {
-          label: "Origem",
-          value: originFilter === "all" ? "Todas" : originFilter === "linked" ? "Com dor" : "Sem dor",
-          active: originFilter !== "all",
-          onClick: () => {
-            onOriginFilterChange(
-              originFilter === "all" ? "linked" : originFilter === "linked" ? "unlinked" : "all",
-            );
-          },
-        },
-      ]}
-      search={search}
-      onSearchChange={onSearchChange}
-      views={[
-        { value: "list", label: "lista" },
-        { value: "grid", label: "cards" },
-      ]}
-      activeView={view}
-      onViewChange={onViewChange}
-    />
-  );
-}

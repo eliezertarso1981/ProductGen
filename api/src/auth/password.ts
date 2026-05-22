@@ -5,6 +5,7 @@ import argon2 from 'argon2';
 const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;
 const MIN_PASSWORD_LENGTH = 12;
+const MIN_SIGNUP_PASSWORD_LENGTH = 8;
 
 export function validatePasswordPolicy(password: string): void {
   if (password.length < MIN_PASSWORD_LENGTH) {
@@ -12,8 +13,32 @@ export function validatePasswordPolicy(password: string): void {
   }
 }
 
+export function validateSignupPassword(password: string): void {
+  if (password.length < MIN_SIGNUP_PASSWORD_LENGTH) {
+    throw new Error('Senha deve ter no mínimo 8 caracteres');
+  }
+  if (!/[A-Z]/.test(password)) {
+    throw new Error('Senha deve conter pelo menos uma letra maiúscula');
+  }
+  if (!/\d/.test(password)) {
+    throw new Error('Senha deve conter pelo menos um número');
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    throw new Error('Senha deve conter pelo menos um caractere especial');
+  }
+}
+
 export async function hashPassword(password: string): Promise<string> {
   validatePasswordPolicy(password);
+  return hashPasswordUnsafe(password);
+}
+
+export async function hashSignupPassword(password: string): Promise<string> {
+  validateSignupPassword(password);
+  return hashPasswordUnsafe(password);
+}
+
+async function hashPasswordUnsafe(password: string): Promise<string> {
   return argon2.hash(password, {
     type: argon2.argon2id,
     memoryCost: 65_536,
@@ -21,6 +46,8 @@ export async function hashPassword(password: string): Promise<string> {
     parallelism: 4,
   });
 }
+
+export { hashPasswordUnsafe };
 
 export async function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
   if (passwordHash.startsWith('$argon2id$')) {

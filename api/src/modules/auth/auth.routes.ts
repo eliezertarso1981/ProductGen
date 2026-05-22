@@ -11,7 +11,7 @@ import { pool } from '../../db/pool';
 import { AppError } from '../../shared/errors';
 import { authRouteSchemas } from '../../docs/route-docs';
 import { config } from '../../config/env';
-import { requireAuth } from '../../auth/middleware';
+import { requireAuth, requireAuthSession } from '../../auth/middleware';
 import { withWorkspaceTx } from '../../db/tx';
 import { getEffectivePermissions } from '../../auth/permissions';
 
@@ -100,7 +100,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(200).send({ token: result.token });
   });
 
-  app.post('/auth/logout', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/auth/logout', { preHandler: requireAuthSession }, async (request, reply) => {
     await revokeSessionService(pool, request.user.session_id);
     reply
       .clearCookie(accessCookie, { path: '/' })
@@ -109,7 +109,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  app.post('/auth/logout-all', { preHandler: requireAuth }, async (request, reply) => {
+  app.post('/auth/logout-all', { preHandler: requireAuthSession }, async (request, reply) => {
     await revokeAllSessionsService(pool, request.user.user_id);
     reply
       .clearCookie(accessCookie, { path: '/' })
@@ -118,7 +118,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  app.get('/auth/me', { preHandler: requireAuth }, async (request, reply) => {
+  app.get('/auth/me', { preHandler: requireAuthSession }, async (request, reply) => {
     const userResult = await pool.query<{
       id: string;
       name: string;
@@ -134,8 +134,9 @@ export async function authRoutes(app: FastifyInstance) {
     const user = userResult.rows[0];
     if (!user) throw new AppError(401, 'INVALID_TOKEN', 'Usuário inválido');
 
+    const membershipRows = await listUserWorkspaces(pool, request.user.user_id);
     const workspaces = await Promise.all(
-      (await listUserWorkspaces(pool, request.user.user_id)).map(async (workspace) => {
+      membershipRows.map(async (workspace) => {
         const workspacePermissions = await getEffectivePermissions(pool, request.user.user_id, {
           workspaceId: workspace.id,
         });
@@ -182,7 +183,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({
       user,
       workspaces,
-      current_workspace_id: request.user.workspace_id,
+      current_workspace_id: request.user.workspace_id || null,
       current_product_id: request.cookies.pg_product ?? null,
     });
   });

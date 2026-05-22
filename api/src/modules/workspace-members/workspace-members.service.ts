@@ -38,6 +38,7 @@ export async function createMember(
         actor_id: actorId,
         user_id: input.user_id,
         role: input.role,
+        job_function: input.job_function ?? null,
       }),
     );
   } catch (err) {
@@ -55,7 +56,7 @@ export async function updateMemberRole(
   input: UpdateWorkspaceMemberInput,
 ) {
   const member = await withWorkspaceTx(pool, workspaceId, actorId, (client) =>
-    repo.updateWorkspaceMemberRole(client, workspaceId, userId, input),
+    repo.updateWorkspaceMember(client, workspaceId, userId, input),
   );
 
   if (!member) throw new AppError(404, 'NOT_FOUND', 'Membro não encontrado');

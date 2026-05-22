@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -9,9 +9,13 @@ import {
   getOutcomeDisplayId,
   getRoadmapDisplayId,
   outcomeStatusConfig,
+  outcomeStatuses,
+  type OutcomeStatus,
 } from "@/lib/discovery-data";
 import { useProducts } from "@/lib/products-context";
 import { EmptyState, PageHeader, formatDate } from "@/components/shared/crud-ui";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
+import { cycleFilterValue, normalizeDiscoverySearch } from "@/components/discovery/filter-helpers";
 
 export default function OutcomesPage() {
   const router = useRouter();
@@ -29,6 +33,29 @@ export default function OutcomesPage() {
     () => outcomes.filter((outcome) => outcome.productId === currentProduct.id),
     [currentProduct.id, outcomes],
   );
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | OutcomeStatus>("all");
+  const visibleItems = useMemo(() => {
+    const query = normalizeDiscoverySearch(search);
+    return items.filter((outcome) => {
+      const roadmapItem = roadmapById.get(outcome.roadmapItemId);
+      const status = outcomeStatusConfig[outcome.status];
+      const matchesSearch =
+        !query ||
+        [
+          getOutcomeDisplayId(outcome),
+          outcome.hypothesizedImpact,
+          outcome.conclusion,
+          status.label,
+          roadmapItem ? getRoadmapDisplayId(roadmapItem) : undefined,
+          roadmapItem?.title,
+        ]
+          .filter(Boolean)
+          .some((value) => normalizeDiscoverySearch(value).includes(query));
+      const matchesStatus = statusFilter === "all" || outcome.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [items, roadmapById, search, statusFilter]);
 
   if (!ready) return <div className="px-6 py-10 text-[var(--fg-faint)]">Carregando...</div>;
 
@@ -54,11 +81,36 @@ export default function OutcomesPage() {
         createLabel="Novo outcome"
       />
 
+      {items.length > 0 && (
+        <DiscoveryFilterBar
+          chips={[
+            {
+              label: "Status",
+              value: statusFilter === "all" ? undefined : outcomeStatusConfig[statusFilter].label,
+              active: statusFilter !== "all",
+              onClick: () => setStatusFilter(cycleFilterValue(statusFilter, outcomeStatuses)),
+            },
+          ]}
+          search={search}
+          onSearchChange={setSearch}
+          resultCount={visibleItems.length}
+          hasActiveFilters={statusFilter !== "all" || search.trim() !== ""}
+          onClear={() => {
+            setSearch("");
+            setStatusFilter("all");
+          }}
+        />
+      )}
+
       <div className="mt-5">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <EmptyState
-            title="Nenhum outcome ainda"
-            hint="Outcomes medem o impacto pós-entrega de itens do roadmap."
+            title={items.length === 0 ? "Nenhum outcome ainda" : "Nenhum outcome encontrado"}
+            hint={
+              items.length === 0
+                ? "Outcomes medem o impacto pós-entrega de itens do roadmap."
+                : "Ajuste a busca ou os filtros para ver mais resultados."
+            }
           />
         ) : (
           <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
@@ -77,7 +129,7 @@ export default function OutcomesPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((outcome) => {
+                {visibleItems.map((outcome) => {
                   const roadmapItem = roadmapById.get(outcome.roadmapItemId);
                   const status = outcomeStatusConfig[outcome.status];
                   return (

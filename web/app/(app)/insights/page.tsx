@@ -1,21 +1,33 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useDiscovery } from "@/lib/discovery-store";
 import { getInsightDisplayId } from "@/lib/discovery-data";
 import { useProducts } from "@/lib/products-context";
 import { PageHeader, EmptyState, formatDate } from "@/components/shared/crud-ui";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
+import { normalizeDiscoverySearch } from "@/components/discovery/filter-helpers";
 
 export default function InsightsPage() {
   const router = useRouter();
   const { currentProduct } = useProducts();
   const { insights, createInsight, getEvidence } = useDiscovery();
+  const [search, setSearch] = useState("");
   const items = useMemo(
     () => insights.filter((insight) => insight.productId === currentProduct.id),
     [insights, currentProduct.id],
   );
+  const visibleItems = useMemo(() => {
+    const query = normalizeDiscoverySearch(search);
+    if (!query) return items;
+    return items.filter((insight) =>
+      [getInsightDisplayId(insight), insight.title, insight.description]
+        .filter(Boolean)
+        .some((value) => normalizeDiscoverySearch(value).includes(query)),
+    );
+  }, [items, search]);
 
   return (
     <div className="px-6 py-5">
@@ -35,11 +47,25 @@ export default function InsightsPage() {
         createLabel="Novo insight"
       />
 
+      {items.length > 0 && (
+        <DiscoveryFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          resultCount={visibleItems.length}
+          hasActiveFilters={search.trim() !== ""}
+          onClear={() => setSearch("")}
+        />
+      )}
+
       <div className="mt-5">
-        {items.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <EmptyState
-            title="Nenhum insight ainda"
-            hint="Insights pertencem ao produto e podem nascer sem evidência vinculada."
+            title={items.length === 0 ? "Nenhum insight ainda" : "Nenhum insight encontrado"}
+            hint={
+              items.length === 0
+                ? "Insights pertencem ao produto e podem nascer sem evidência vinculada."
+                : "Ajuste a busca para ver mais resultados."
+            }
           />
         ) : (
           <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
@@ -57,7 +83,7 @@ export default function InsightsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((insight) => (
+                {visibleItems.map((insight) => (
                   <tr
                     key={insight.id}
                     className="cursor-pointer border-t transition-colors hover:bg-[var(--bg-muted)]"

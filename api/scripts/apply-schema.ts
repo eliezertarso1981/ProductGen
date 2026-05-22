@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { Client } from 'pg';
 import 'dotenv/config';
 
@@ -11,6 +11,27 @@ const schemaPath = resolve(
   cliArgs[0] ?? '../docs/reference/database/productgen_schema.sql',
 );
 const seedPath = resolve(process.cwd(), cliArgs[1] ?? '../DB/seed-dev.sql');
+const migrationsDir = resolve(process.cwd(), '../DB/migrations');
+
+async function applyMigrations(client: Client) {
+  let files: string[];
+  try {
+    files = (await readdir(migrationsDir))
+      .filter((name) => name.endsWith('.sql'))
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    console.warn(`Pasta de migrações não encontrada: ${migrationsDir}`);
+    return;
+  }
+
+  for (const file of files) {
+    const migrationPath = join(migrationsDir, file);
+    const migrationSql = await readFile(migrationPath, 'utf-8');
+    console.log(`Aplicando migração: ${file}`);
+    await client.query(migrationSql);
+  }
+  console.log('Migrações aplicadas.');
+}
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -38,6 +59,8 @@ async function main() {
       await client.query(schemaSql);
       console.log('Schema aplicado.');
     }
+
+    await applyMigrations(client);
 
     if (withSeed) {
       const seedSql = await readFile(seedPath, 'utf-8');

@@ -99,6 +99,19 @@ describe('CRUD de workspace_members', () => {
     expect(body.role).toBe('admin');
   });
 
+  it('PATCH /workspaces/:workspace_id/members/:user_id atualiza job_function', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/workspaces/${workspaceId}/members/${memberUserId}`,
+      headers: authHeader(token),
+      payload: { job_function: 'PM' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.job_function).toBe('PM');
+  });
+
   it('DELETE /workspaces/:workspace_id/members/:user_id faz soft delete (204) e GET retorna 404', async () => {
     const del = await app.inject({
       method: 'DELETE',

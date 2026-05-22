@@ -6,8 +6,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Acme Product Team — Discovery",
-  description: "Dashboard de Product Discovery",
+  title: "ProductDiscovery",
+  description: "Plataforma de Product Discovery e Product Intelligence",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

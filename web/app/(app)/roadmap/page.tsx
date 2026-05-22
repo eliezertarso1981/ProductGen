@@ -12,10 +12,10 @@ import { getRoadmapDisplayId, roadmapStatuses, roadmapStatusConfig } from "@/lib
 import {
   PageHeader,
   EmptyState,
-  ListingToolbar,
   formatDateOnly,
   type ListingView,
 } from "@/components/shared/crud-ui";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
 import { Avatar } from "@/components/shared/avatar";
 import { EntityDrawer } from "@/components/shared/entity-drawer";
 import { RoadmapDetailContent } from "@/components/roadmap/roadmap-detail-content";
@@ -77,19 +77,22 @@ export default function RoadmapPage() {
         createLabel="Novo item"
       />
 
-      <ListingToolbar
-        filters={roadmapStatuses.map((status) => ({
+      <DiscoveryFilterBar
+        chips={roadmapStatuses.map((status) => ({
           label: roadmapStatusConfig[status].label,
           value: String(visibleItems.filter((item) => item.status === status).length),
         }))}
         search={search}
         onSearchChange={setSearch}
         views={[
-          { value: "board", label: "board" },
+          { value: "board", label: "kanban" },
           { value: "list", label: "lista" },
         ]}
         activeView={view}
         onViewChange={setView}
+        resultCount={visibleItems.length}
+        hasActiveFilters={search.trim() !== ""}
+        onClear={() => setSearch("")}
       />
 
       <div className="mt-5">

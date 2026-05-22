@@ -2,7 +2,7 @@
 
 const API_URL = process.env.NEXT_PUBLIC_PRODUCTGEN_API_URL?.replace(/\/$/, "") ?? "";
 
-const WORKSPACE_ID_KEY = "productgen-api-workspace-id-v1";
+export const WORKSPACE_ID_KEY = "productgen-api-workspace-id-v1";
 const USER_KEY = "productgen-api-user-v1";
 
 interface AuthSession {
@@ -30,6 +30,8 @@ export interface AuthWorkspace {
   slug: string;
   name: string;
   role: string;
+  onboarded_at?: string | null;
+  plan?: string;
   permissions?: string[];
   products?: Array<{
     id: string;
@@ -49,7 +51,7 @@ export interface AuthBootstrap {
     avatar_url?: string | null;
   };
   workspaces: AuthWorkspace[];
-  current_workspace_id: string;
+  current_workspace_id: string | null;
   current_product_id: string | null;
 }
 
@@ -66,12 +68,15 @@ export interface ApiProduct {
 
 export type WorkspaceRole = "owner" | "admin" | "member" | "viewer" | "guest";
 
+export type WorkspaceJobFunction = "CEO" | "CPO" | "GPM" | "PM" | "PD" | "UX" | "PO";
+
 export interface ApiWorkspaceMember {
   workspace_id: string;
   user_id: string;
   name: string;
   email: string;
   role: WorkspaceRole;
+  job_function: WorkspaceJobFunction | null;
   joined_at: string;
   last_accessed_at: string | null;
   onboarded_at: string | null;
@@ -637,7 +642,7 @@ export async function loginToProductgenApi(input: {
   password: string;
 }): Promise<LoginResponse> {
   if (!isProductgenApiConfigured()) {
-    throw new Error("API do ProductGen não configurada.");
+    throw new Error("API do ProductDiscovery não configurada.");
   }
 
   const response = await fetch(`${API_URL}/auth/login`, {
@@ -651,7 +656,7 @@ export async function loginToProductgenApi(input: {
   });
 
   if (!response.ok) {
-    let message = "Não foi possível autenticar na API do ProductGen.";
+    let message = "Não foi possível autenticar na API do ProductDiscovery.";
     try {
       const body = (await response.json()) as { error?: { message?: string } };
       message = body.error?.message ?? message;
@@ -672,12 +677,14 @@ export async function loginToProductgenApi(input: {
 
 export async function bootstrapProductgenAuth(): Promise<AuthBootstrap> {
   if (!isProductgenApiConfigured()) {
-    throw new Error("API do ProductGen não configurada.");
+    throw new Error("API do ProductDiscovery não configurada.");
   }
 
+  const storedWorkspaceId = localStorage.getItem(WORKSPACE_ID_KEY);
   const response = await fetch(`${API_URL}/auth/me`, {
     method: "GET",
     credentials: "include",
+    headers: storedWorkspaceId ? { "X-Workspace-Id": storedWorkspaceId } : undefined,
   });
 
   if (response.status === 401) {
@@ -691,14 +698,20 @@ export async function bootstrapProductgenAuth(): Promise<AuthBootstrap> {
   }
 
   const data = (await response.json()) as AuthBootstrap;
-  localStorage.setItem(WORKSPACE_ID_KEY, data.current_workspace_id);
+  const resolvedWorkspaceId =
+    data.current_workspace_id ?? data.workspaces[0]?.id ?? storedWorkspaceId ?? null;
+  if (resolvedWorkspaceId) {
+    localStorage.setItem(WORKSPACE_ID_KEY, resolvedWorkspaceId);
+  } else {
+    localStorage.removeItem(WORKSPACE_ID_KEY);
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(data.user));
   return data;
 }
 
 async function getSession(): Promise<AuthSession> {
   if (!isProductgenApiConfigured()) {
-    throw new Error("API do ProductGen não configurada.");
+    throw new Error("API do ProductDiscovery não configurada.");
   }
 
   const workspaceId = localStorage.getItem(WORKSPACE_ID_KEY);
@@ -707,6 +720,10 @@ async function getSession(): Promise<AuthSession> {
   }
 
   const bootstrap = await bootstrapProductgenAuth();
+  if (!bootstrap.current_workspace_id) {
+    throw new Error("Workspace não configurado. Conclua o cadastro do workspace.");
+  }
+  localStorage.setItem(WORKSPACE_ID_KEY, bootstrap.current_workspace_id);
   return { workspaceId: bootstrap.current_workspace_id };
 }
 
@@ -730,7 +747,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, retry = true)
   }
 
   if (!response.ok) {
-    let message = "Erro ao chamar a API do ProductGen.";
+    let message = "Erro ao chamar a API do ProductDiscovery.";
     try {
       const body = (await response.json()) as { error?: { message?: string } };
       message = body.error?.message ?? message;
@@ -768,6 +785,7 @@ export async function listWorkspaceMembersFromApi() {
 export async function createWorkspaceMemberInApi(input: {
   user_id: string;
   role: WorkspaceRole;
+  job_function?: WorkspaceJobFunction | null;
 }) {
   const session = await getSession();
   return apiRequest<ApiWorkspaceMember>(`/workspaces/${session.workspaceId}/members`, {
@@ -776,11 +794,14 @@ export async function createWorkspaceMemberInApi(input: {
   });
 }
 
-export async function updateWorkspaceMemberInApi(userId: string, role: WorkspaceRole) {
+export async function updateWorkspaceMemberInApi(
+  userId: string,
+  patch: { role?: WorkspaceRole; job_function?: WorkspaceJobFunction | null },
+) {
   const session = await getSession();
   return apiRequest<ApiWorkspaceMember>(`/workspaces/${session.workspaceId}/members/${userId}`, {
     method: "PATCH",
-    body: JSON.stringify({ role }),
+    body: JSON.stringify(patch),
   });
 }
 

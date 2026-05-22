@@ -10,7 +10,7 @@ type Tab = "products" | "teams" | "general";
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof Box }> = [
   { id: "products", label: "Produtos", icon: Box },
-  { id: "teams", label: "Usuários & Grupos", icon: Users },
+  { id: "teams", label: "Usuários & Squads", icon: Users },
   { id: "general", label: "Geral", icon: SettingsIcon },
 ];
 
@@ -26,7 +26,7 @@ export default function Page() {
             Settings
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--fg-subtle)" }}>
-            Gerencie produtos, usuários, grupos e configurações do workspace.
+            Gerencie produtos, usuários, squads e configurações do workspace.
           </p>
         </div>
       </div>

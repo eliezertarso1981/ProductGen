@@ -1,6 +1,7 @@
 import { pool } from '../../db/pool';
 import { withWorkspaceTx } from '../../db/tx';
 import { AppError, mapDbError } from '../../shared/errors';
+import { getPlanDefinition } from '../../config/plans';
 import type { CreateProductInput, UpdateProductInput } from './products.schemas';
 import * as repo from './products.repo';
 
@@ -24,6 +25,29 @@ export async function createProduct(
   input: CreateProductInput,
 ) {
   try {
+    const planResult = await pool.query<{ plan: string }>(
+      `SELECT plan FROM workspaces WHERE id = $1 AND deleted_at IS NULL`,
+      [workspaceId],
+    );
+    const planCode = planResult.rows[0]?.plan ?? 'free';
+    const plan = getPlanDefinition(planCode) ?? getPlanDefinition('free');
+    if (plan?.max_products != null) {
+      const countResult = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM products
+         WHERE workspace_id = $1 AND deleted_at IS NULL`,
+        [workspaceId],
+      );
+      const currentCount = Number(countResult.rows[0]?.count ?? 0);
+      if (currentCount >= plan.max_products) {
+        throw new AppError(
+          403,
+          'PLAN_LIMIT_EXCEEDED',
+          `Plano ${plan.name} permite até ${plan.max_products} produto(s). Faça upgrade para Professional.`,
+        );
+      }
+    }
+
     return await withWorkspaceTx(pool, workspaceId, actorId, async (client) => {
       const product = await repo.createProduct(client, { workspace_id: workspaceId, ...input });
       await client.query(

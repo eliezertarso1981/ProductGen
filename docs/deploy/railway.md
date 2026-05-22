@@ -87,6 +87,20 @@ Headers corretos:
 
 Erro `DATABASE_URL: Required` → adicione `DATABASE_URL=${{NomeDoServicoPostgres.DATABASE_URL}}`.
 
+## Onboarding (signup) — erro 500 / “Erro interno do servidor”
+
+O fluxo `/signup` precisa das tabelas da migração `DB/migrations/002_onboarding.sql` (`email_verification_tokens`, colunas extras em `workspaces`, etc.). Se o Postgres foi criado **antes** dessa feature, rode **uma vez** no seu PC com a URL pública do Railway:
+
+```bash
+cd api
+set DATABASE_URL=postgresql://...@ballast.proxy.rlwy.net:PORT/railway
+npm run db:migrate
+```
+
+(`npm run db:schema` também aplica migrações; `db:migrate` só roda as migrações, sem recriar o schema inteiro.)
+
+Depois **redeploy** a API (ou reinicie o serviço) e tente o cadastro de novo.
+
 ## Sentry (monitoramento de erros — plano free)
 
 1. Crie conta em [sentry.io](https://sentry.io) → projeto **ProductGen** (ou dois: API + Web).

@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { RouteTransitionShell } from "@/components/shell/route-transition-shell";
 import { AuthGate } from "@/components/auth/auth-gate";
+import { OnboardingGate } from "@/components/auth/onboarding-gate";
 import { ProductsProvider } from "@/lib/products-context";
 import { DoresProvider } from "@/lib/dores-store";
 import { DiscoveryProvider } from "@/lib/discovery-store";
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <AuthProvider>
         <AuthGate>
+          <OnboardingGate>
           <ProductsProvider>
             <WorkspaceProvider>
               <StrategyProvider>
@@ -37,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </StrategyProvider>
             </WorkspaceProvider>
           </ProductsProvider>
+          </OnboardingGate>
         </AuthGate>
       </AuthProvider>
     </ThemeProvider>

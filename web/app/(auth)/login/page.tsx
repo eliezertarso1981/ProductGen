@@ -129,7 +129,10 @@ function LoginForm({
       </form>
 
       <p className="mt-8 text-center text-sm" style={{ color: p.textSecondary }}>
-        Use o email e a senha cadastrados no ambiente.
+        Ainda não tem conta?{" "}
+        <a href="/signup" className="font-medium underline" style={{ color: brand.primary }}>
+          Criar minha conta
+        </a>
       </p>
     </>
   );

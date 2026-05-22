@@ -6,6 +6,7 @@ export type ExperimentResult = "valida" | "invalida" | "inconclusivo" | null;
 export type RoadmapStatus = "now" | "next" | "later" | "concluido";
 export type OutcomeStatus = "hipotetizado" | "medindo" | "confirmado" | "nao_confirmado" | "inconclusivo";
 export type EvidenceType = "entrevista" | "metrica" | "suporte" | "nps" | "outro";
+export type EvidenceStatus = "new" | "triaged" | "linked" | "archived";
 
 export interface HypothesisPrototype {
   id: string;
@@ -196,6 +197,35 @@ export const outcomeStatuses: OutcomeStatus[] = [
   "inconclusivo",
 ];
 export const evidenceTypes: EvidenceType[] = ["entrevista", "metrica", "suporte", "nps", "outro"];
+
+export const evidenceStatusConfig: Record<EvidenceStatus, { label: string; dot: string }> = {
+  new: { label: "Nova", dot: "var(--fg-faint)" },
+  triaged: { label: "Triada", dot: "var(--info)" },
+  linked: { label: "Vinculada", dot: "var(--success)" },
+  archived: { label: "Arquivada", dot: "var(--border-strong)" },
+};
+
+export const evidenceStatuses: EvidenceStatus[] = ["new", "triaged", "linked", "archived"];
+
+export function toStatusBoardColumns<TStatus extends string>(
+  statuses: readonly TStatus[],
+  config: Record<TStatus, { label: string; dot: string; accent?: string }>,
+) {
+  return statuses.map((status) => ({
+    status,
+    label: config[status].label,
+    dot: config[status].dot,
+    accent: config[status].accent,
+  }));
+}
+
+export function getEvidenceStatus(evidence: Pick<Evidence, "apiStatus">): EvidenceStatus {
+  const status = evidence.apiStatus;
+  if (status && evidenceStatuses.includes(status as EvidenceStatus)) {
+    return status as EvidenceStatus;
+  }
+  return "new";
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

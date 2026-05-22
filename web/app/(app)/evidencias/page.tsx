@@ -9,22 +9,34 @@ import { useProducts } from "@/lib/products-context";
 import {
   evidenceTypeConfig,
   evidenceTypes,
+  evidenceStatusConfig,
+  evidenceStatuses,
   getEvidenceDisplayId,
+  getEvidenceStatus,
   getExperimentDisplayId,
+  toStatusBoardColumns,
+  type Evidence,
+  type EvidenceStatus,
   type EvidenceType,
 } from "@/lib/discovery-data";
-import { PageHeader, EmptyState, formatDate } from "@/components/shared/crud-ui";
+import { PageHeader, EmptyState, formatDate, type ListingView } from "@/components/shared/crud-ui";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
+import { StatusBoard } from "@/components/discovery/status-board";
+import { cycleFilterValue, normalizeDiscoverySearch } from "@/components/discovery/filter-helpers";
 
 type EvidenceTypeFilter = "all" | EvidenceType;
+type EvidenceStatusFilter = "all" | EvidenceStatus;
 
 export default function EvidenciasPage() {
   const router = useRouter();
   const { currentProduct } = useProducts();
-  const { evidences, createEvidence, getExperiment } = useDiscovery();
+  const { evidences, createEvidence, updateEvidence, getExperiment } = useDiscovery();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<EvidenceTypeFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<EvidenceStatusFilter>("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [experimentFilter, setExperimentFilter] = useState("all");
+  const [view, setView] = useState<ListingView>("board");
   const items = useMemo(
     () => evidences.filter((e) => e.productId === currentProduct.id),
     [evidences, currentProduct.id],
@@ -60,11 +72,12 @@ export default function EvidenciasPage() {
     [getExperiment, items],
   );
   const visibleItems = useMemo(() => {
-    const query = normalize(search);
+    const query = normalizeDiscoverySearch(search);
 
     return items.filter((evidence) => {
       const experiment = evidence.experimentId ? getExperiment(evidence.experimentId) : undefined;
       const experimentDisplayId = experiment ? getExperimentDisplayId(experiment) : undefined;
+      const evidenceStatus = getEvidenceStatus(evidence);
       const matchesSearch =
         !query ||
         [
@@ -75,29 +88,41 @@ export default function EvidenciasPage() {
           evidence.notes,
           evidence.source,
           evidenceTypeConfig[evidence.type].label,
+          evidenceStatusConfig[evidenceStatus].label,
           evidence.experimentId,
           experimentDisplayId,
           experiment?.title,
           experiment?.method,
         ]
           .filter(Boolean)
-          .some((value) => normalize(value).includes(query));
+          .some((value) => normalizeDiscoverySearch(value).includes(query));
       const matchesType = typeFilter === "all" || evidence.type === typeFilter;
+      const matchesStatus = statusFilter === "all" || evidenceStatus === statusFilter;
       const matchesSource = sourceFilter === "all" || evidence.source.trim() === sourceFilter;
       const matchesExperiment =
         experimentFilter === "all" ||
         (experimentFilter === "none" ? !experiment : evidence.experimentId === experimentFilter);
 
-      return matchesSearch && matchesType && matchesSource && matchesExperiment;
+      return matchesSearch && matchesType && matchesStatus && matchesSource && matchesExperiment;
     });
-  }, [experimentFilter, getExperiment, items, search, sourceFilter, typeFilter]);
+  }, [experimentFilter, getExperiment, items, search, sourceFilter, statusFilter, typeFilter]);
   const hasActiveFilters =
-    search.trim() !== "" || typeFilter !== "all" || sourceFilter !== "all" || experimentFilter !== "all";
+    search.trim() !== "" ||
+    typeFilter !== "all" ||
+    statusFilter !== "all" ||
+    sourceFilter !== "all" ||
+    experimentFilter !== "all";
   const clearFilters = () => {
     setSearch("");
     setTypeFilter("all");
+    setStatusFilter("all");
     setSourceFilter("all");
     setExperimentFilter("all");
+  };
+  const boardColumns = toStatusBoardColumns(evidenceStatuses, evidenceStatusConfig);
+  const handleMove = (id: string, status: EvidenceStatus) => {
+    updateEvidence(id, { apiStatus: status });
+    toast.success(`Movida para "${evidenceStatusConfig[status].label}"`);
   };
 
   return (
@@ -119,20 +144,67 @@ export default function EvidenciasPage() {
       />
 
       {items.length > 0 && (
-        <EvidenceFilters
+        <DiscoveryFilterBar
+          chips={[
+            {
+              label: "Status",
+              value: statusFilter === "all" ? undefined : evidenceStatusConfig[statusFilter].label,
+              active: statusFilter !== "all",
+              onClick: () => setStatusFilter(cycleFilterValue(statusFilter, evidenceStatuses)),
+            },
+          ]}
+          selects={[
+            {
+              label: "Tipo",
+              value: typeFilter,
+              onChange: (value) => setTypeFilter(value as EvidenceTypeFilter),
+              options: [
+                { value: "all", label: "Todos os tipos" },
+                ...evidenceTypes.map((type) => ({ value: type, label: evidenceTypeConfig[type].label })),
+              ],
+            },
+            ...(sourceOptions.length > 0
+              ? [
+                  {
+                    label: "Origem",
+                    value: sourceFilter,
+                    onChange: setSourceFilter,
+                    options: [
+                      { value: "all", label: "Todas as origens" },
+                      ...sourceOptions.map((source) => ({ value: source, label: source })),
+                    ],
+                  },
+                ]
+              : []),
+            ...(experimentOptions.length > 0 || hasUnlinkedEvidences
+              ? [
+                  {
+                    label: "Experimento",
+                    value: experimentFilter,
+                    onChange: setExperimentFilter,
+                    options: [
+                      { value: "all", label: "Todos os experimentos" },
+                      ...experimentOptions.map((experiment) => ({
+                        value: experiment.id,
+                        label: `${experiment.label} · ${experiment.title}`,
+                      })),
+                      ...(hasUnlinkedEvidences ? [{ value: "none", label: "Sem experimento" }] : []),
+                    ],
+                  },
+                ]
+              : []),
+          ]}
           search={search}
           onSearchChange={setSearch}
-          typeFilter={typeFilter}
-          onTypeFilterChange={setTypeFilter}
-          sourceFilter={sourceFilter}
-          onSourceFilterChange={setSourceFilter}
-          sourceOptions={sourceOptions}
-          experimentFilter={experimentFilter}
-          onExperimentFilterChange={setExperimentFilter}
-          experimentOptions={experimentOptions}
-          hasUnlinkedEvidences={hasUnlinkedEvidences}
-          hasActiveFilters={hasActiveFilters}
+          searchPlaceholder="Código, título, notas, origem ou experimento..."
+          views={[
+            { value: "list", label: "lista" },
+            { value: "board", label: "kanban" },
+          ]}
+          activeView={view}
+          onViewChange={setView}
           resultCount={visibleItems.length}
+          hasActiveFilters={hasActiveFilters}
           onClear={clearFilters}
         />
       )}
@@ -147,6 +219,45 @@ export default function EvidenciasPage() {
                 : "Ajuste ou limpe os filtros para ver mais resultados."
             }
           />
+        ) : view === "board" ? (
+          <StatusBoard<Evidence, EvidenceStatus>
+            columns={boardColumns}
+            items={visibleItems}
+            getItemId={(ev) => ev.id}
+            getItemStatus={(ev) => getEvidenceStatus(ev)}
+            onSelect={(ev) => router.push(`/evidencias/${ev.id}`)}
+            onMove={handleMove}
+            groupName="evidences"
+            renderCard={(ev) => {
+              const t = evidenceTypeConfig[ev.type];
+              const exp = ev.experimentId ? getExperiment(ev.experimentId) : undefined;
+              return (
+                <>
+                  <div className="flex items-center justify-between font-mono text-[11px] text-[var(--fg-faint)]">
+                    <span>{getEvidenceDisplayId(ev) ?? "Evidência"}</span>
+                    <span>{formatDate(ev.updatedAt)}</span>
+                  </div>
+                  <div className="mt-1 font-semibold text-[var(--fg)]">{ev.title}</div>
+                  <p className="mt-1 line-clamp-2 text-[12px] text-[var(--fg-subtle)]">{ev.notes}</p>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                    <span
+                      className="rounded px-1.5 py-0.5 font-semibold"
+                      style={{ backgroundColor: `${t.color}15`, color: t.color }}
+                    >
+                      {t.label}
+                    </span>
+                    {exp ? (
+                      <span className="font-mono text-[var(--primary)]">
+                        {getExperimentDisplayId(exp) ?? "Experimento"}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--fg-faint)]">{ev.source || "Sem experimento"}</span>
+                    )}
+                  </div>
+                </>
+              );
+            }}
+          />
         ) : (
           <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
             <table className="w-full text-left text-sm">
@@ -158,6 +269,7 @@ export default function EvidenciasPage() {
                   <th className="px-4 py-3 font-semibold">ID</th>
                   <th className="px-4 py-3 font-semibold">Evidência</th>
                   <th className="px-4 py-3 font-semibold">Tipo</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Origem</th>
                   <th className="px-4 py-3 font-semibold">Experimento</th>
                   <th className="px-4 py-3 font-semibold">Atualizada</th>
@@ -166,6 +278,7 @@ export default function EvidenciasPage() {
               <tbody>
                 {visibleItems.map((ev) => {
                   const t = evidenceTypeConfig[ev.type];
+                  const status = evidenceStatusConfig[getEvidenceStatus(ev)];
                   const exp = ev.experimentId ? getExperiment(ev.experimentId) : undefined;
                   return (
                     <tr
@@ -179,9 +292,7 @@ export default function EvidenciasPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-[var(--fg)]">{ev.title}</div>
-                        <div className="mt-0.5 line-clamp-1 text-[13px] text-[var(--fg-faint)]">
-                          {ev.notes}
-                        </div>
+                        <div className="mt-0.5 line-clamp-1 text-[13px] text-[var(--fg-faint)]">{ev.notes}</div>
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -189,6 +300,12 @@ export default function EvidenciasPage() {
                           style={{ backgroundColor: `${t.color}15`, color: t.color }}
                         >
                           {t.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--fg-muted)]">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: status.dot }} />
+                          {status.label}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[13px] text-[var(--fg-muted)]">{ev.source || "—"}</td>
@@ -205,9 +322,7 @@ export default function EvidenciasPage() {
                           <span className="text-[var(--border-strong)]">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[13px] text-[var(--fg-subtle)]">
-                        {formatDate(ev.updatedAt)}
-                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--fg-subtle)]">{formatDate(ev.updatedAt)}</td>
                     </tr>
                   );
                 })}
@@ -218,140 +333,4 @@ export default function EvidenciasPage() {
       </div>
     </div>
   );
-}
-
-function EvidenceFilters({
-  search,
-  onSearchChange,
-  typeFilter,
-  onTypeFilterChange,
-  sourceFilter,
-  onSourceFilterChange,
-  sourceOptions,
-  experimentFilter,
-  onExperimentFilterChange,
-  experimentOptions,
-  hasUnlinkedEvidences,
-  hasActiveFilters,
-  resultCount,
-  onClear,
-}: {
-  search: string;
-  onSearchChange: (value: string) => void;
-  typeFilter: EvidenceTypeFilter;
-  onTypeFilterChange: (value: EvidenceTypeFilter) => void;
-  sourceFilter: string;
-  onSourceFilterChange: (value: string) => void;
-  sourceOptions: string[];
-  experimentFilter: string;
-  onExperimentFilterChange: (value: string) => void;
-  experimentOptions: { id: string; label: string; title: string }[];
-  hasUnlinkedEvidences: boolean;
-  hasActiveFilters: boolean;
-  resultCount: number;
-  onClear: () => void;
-}) {
-  return (
-    <div className="border-b border-[var(--border)] bg-[var(--bg-elevated)] py-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-[240px] flex-1">
-          <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--fg-muted)]">
-            Buscar
-          </span>
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Código, título, notas, origem ou experimento..."
-            className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[14px] text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)] focus:border-[var(--primary)] focus:shadow-[0_0_0_3px_rgba(19,200,181,0.15)]"
-          />
-        </label>
-
-        <FilterSelect
-          label="Tipo"
-          value={typeFilter}
-          onChange={(value) => onTypeFilterChange(value as EvidenceTypeFilter)}
-        >
-          <option value="all">Todos os tipos</option>
-          {evidenceTypes.map((type) => (
-            <option key={type} value={type}>
-              {evidenceTypeConfig[type].label}
-            </option>
-          ))}
-        </FilterSelect>
-
-        {sourceOptions.length > 0 && (
-          <FilterSelect label="Origem" value={sourceFilter} onChange={onSourceFilterChange}>
-            <option value="all">Todas as origens</option>
-            {sourceOptions.map((source) => (
-              <option key={source} value={source}>
-                {source}
-              </option>
-            ))}
-          </FilterSelect>
-        )}
-
-        {(experimentOptions.length > 0 || hasUnlinkedEvidences) && (
-          <FilterSelect label="Experimento" value={experimentFilter} onChange={onExperimentFilterChange}>
-            <option value="all">Todos os experimentos</option>
-            {experimentOptions.map((experiment) => (
-              <option key={experiment.id} value={experiment.id}>
-                {experiment.label} · {experiment.title}
-              </option>
-            ))}
-            {hasUnlinkedEvidences && <option value="none">Sem experimento</option>}
-          </FilterSelect>
-        )}
-
-        <button
-          type="button"
-          onClick={onClear}
-          disabled={!hasActiveFilters}
-          className="inline-flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-[14px] font-medium text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-muted)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Limpar filtros
-        </button>
-      </div>
-
-      <div className="mt-2 text-[12px] text-[var(--fg-subtle)]">
-        {resultCount} resultado(s)
-        {hasActiveFilters ? " com filtros aplicados" : ""}
-      </div>
-    </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="min-w-[180px]">
-      <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--fg-muted)]">
-        {label}
-      </span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[14px] text-[var(--fg)] outline-none focus:border-[var(--primary)] focus:shadow-[0_0_0_3px_rgba(19,200,181,0.15)]"
-      >
-        {children}
-      </select>
-    </label>
-  );
-}
-
-function normalize(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
 }

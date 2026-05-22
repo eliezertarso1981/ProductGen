@@ -38,9 +38,9 @@ export default function DoresPage() {
   const [view, setView] = useState<ViewMode>("board");
   const [search, setSearch] = useState("");
   const [personaFilter, setPersonaFilter] = useState("all");
-  const [severityFilter, setSeverityFilter] = useState("4-5");
+  const [severityFilter, setSeverityFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<PainStatus | "active" | "all">("active");
+  const [statusFilter, setStatusFilter] = useState<PainStatus | "active" | "all">("all");
 
   const pains = useMemo(() => {
     const query = search.trim().toLowerCase();

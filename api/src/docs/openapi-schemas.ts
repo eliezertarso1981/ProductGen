@@ -677,6 +677,11 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
       name: { type: 'string' },
       email: { type: 'string', format: 'email' },
       role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
+      job_function: {
+        type: 'string',
+        enum: ['CEO', 'CPO', 'GPM', 'PM', 'PD', 'UX', 'PO'],
+        nullable: true,
+      },
       joined_at: dateTime,
       last_accessed_at: nullableDateTime,
       onboarded_at: nullableDateTime,
@@ -692,15 +697,24 @@ export function registerOpenApiSchemas(app: FastifyInstance) {
     properties: {
       user_id: uuid,
       role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'], nullable: true },
+      job_function: {
+        type: 'string',
+        enum: ['CEO', 'CPO', 'GPM', 'PM', 'PD', 'UX', 'PO'],
+        nullable: true,
+      },
     },
   });
 
   app.addSchema({
     $id: 'UpdateWorkspaceMemberRequest',
     type: 'object',
-    required: ['role'],
     properties: {
       role: { type: 'string', enum: ['owner', 'admin', 'member', 'viewer', 'guest'] },
+      job_function: {
+        type: 'string',
+        enum: ['CEO', 'CPO', 'GPM', 'PM', 'PD', 'UX', 'PO'],
+        nullable: true,
+      },
     },
   });
 

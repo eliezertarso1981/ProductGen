@@ -26,6 +26,7 @@ import { prdsRoutes } from './modules/prds/prds.routes';
 import { releasesRoutes } from './modules/releases/releases.routes';
 import { engineeringHandoffsRoutes } from './modules/engineering-handoffs/engineering-handoffs.routes';
 import { platformRoutes } from './modules/platform/platform.routes';
+import { onboardingRoutes } from './modules/onboarding/onboarding.routes';
 import { registerSwagger } from './docs/swagger';
 import { healthRouteSchemas } from './docs/route-docs';
 import { registerOpenApiSchemas } from './docs/openapi-schemas';
@@ -72,6 +73,7 @@ export function buildApp() {
   });
 
   app.register(authRoutes);
+  app.register(onboardingRoutes);
   app.register(painsRoutes);
   app.register(hypothesesRoutes);
   app.register(roadmapRoutes);

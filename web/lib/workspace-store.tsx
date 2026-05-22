@@ -6,6 +6,7 @@ import { useAuth } from "./auth-context";
 import {
   type ApiWorkspaceTeam,
   type ApiWorkspaceMember,
+  type WorkspaceJobFunction,
   type WorkspaceRole,
   addWorkspaceTeamMemberInApi,
   addWorkspaceTeamProductInApi,
@@ -13,6 +14,7 @@ import {
   createWorkspaceTeamInApi,
   deleteWorkspaceTeamInApi,
   isProductgenApiConfigured,
+  WORKSPACE_ID_KEY,
   listWorkspaceMembersFromApi,
   listWorkspaceTeamsFromApi,
   removeWorkspaceMemberFromApi,
@@ -30,6 +32,7 @@ export interface Member {
   color: string;
   role?: string;
   workspaceRole?: WorkspaceRole;
+  jobFunction?: WorkspaceJobFunction | null;
   joinedAt?: string;
   lastAccessedAt?: string | null;
 }
@@ -269,32 +272,68 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (!auth.ready) return;
+
+      const workspaceId = auth.currentWorkspaceId;
+      if (!workspaceId) {
+        loadLocalState();
+        setSyncError(undefined);
+        if (!cancelled) setReady(true);
+        return;
+      }
+
+      localStorage.setItem(WORKSPACE_ID_KEY, workspaceId);
+
+      const errors: string[] = [];
+      let members: Awaited<ReturnType<typeof listWorkspaceMembersFromApi>> = [];
+      let teams: Awaited<ReturnType<typeof listWorkspaceTeamsFromApi>> = [];
+
       try {
-        const [members, teams] = await Promise.all([
-          listWorkspaceMembersFromApi(),
-          listWorkspaceTeamsFromApi(),
-        ]);
-        if (cancelled) return;
+        members = await listWorkspaceMembersFromApi();
+      } catch (error) {
+        errors.push(
+          error instanceof Error ? error.message : "Falha ao carregar membros.",
+        );
+      }
+
+      try {
+        teams = await listWorkspaceTeamsFromApi();
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : "Falha ao carregar squads.");
+      }
+
+      if (cancelled) return;
+
+      if (errors.length === 0) {
         setState((current) => ({
           ...current,
           members: members.map(fromApiWorkspaceMember),
           teams: teams.map(fromApiWorkspaceTeam),
         }));
         setSyncError(undefined);
-      } catch (error) {
-        if (cancelled) return;
-        setSyncError(error instanceof Error ? error.message : "Falha ao carregar membros da API.");
-        loadLocalState();
-      } finally {
-        if (!cancelled) setReady(true);
+      } else {
+        setSyncError(errors.join(" "));
+        if (members.length > 0 || teams.length > 0) {
+          setState((current) => ({
+            ...current,
+            ...(members.length > 0
+              ? { members: members.map(fromApiWorkspaceMember) }
+              : {}),
+            ...(teams.length > 0 ? { teams: teams.map(fromApiWorkspaceTeam) } : {}),
+          }));
+        } else {
+          loadLocalState();
+        }
       }
+
+      if (!cancelled) setReady(true);
     }
 
     void loadState();
     return () => {
       cancelled = true;
     };
-  }, [isRemoteBacked]);
+  }, [auth.ready, auth.currentWorkspaceId, isRemoteBacked]);
 
   useEffect(() => {
     if (!ready || isRemoteBacked) return;
@@ -312,7 +351,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       isRemoteBacked,
       syncError,
       // ---- members ----
-      addMember: ({ id: requestedId, name, email, role, workspaceRole }) => {
+      addMember: ({ id: requestedId, name, email, role, workspaceRole, jobFunction }) => {
         const id = requestedId ?? `mb-${Date.now()}`;
         const m: Member = {
           id,
@@ -322,12 +361,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           color: teamColors[state.members.length % teamColors.length],
           role,
           workspaceRole,
+          jobFunction: jobFunction ?? null,
         };
         setState((s) => ({ ...s, members: [...s.members, m] }));
         if (isRemoteBacked) {
           void createWorkspaceMemberInApi({
             user_id: id,
             role: workspaceRole ?? "member",
+            job_function: jobFunction ?? null,
           })
             .then((remoteMember) => {
               setState((s) => ({
@@ -353,8 +394,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             m.id === id ? { ...m, ...patch, initials: patch.name ? makeInitials(patch.name) : m.initials } : m,
           ),
         }));
-        if (isRemoteBacked && patch.workspaceRole) {
-          void updateWorkspaceMemberInApi(id, patch.workspaceRole)
+        if (
+          isRemoteBacked &&
+          (patch.workspaceRole !== undefined || patch.jobFunction !== undefined)
+        ) {
+          void updateWorkspaceMemberInApi(id, {
+            ...(patch.workspaceRole !== undefined ? { role: patch.workspaceRole } : {}),
+            ...(patch.jobFunction !== undefined ? { job_function: patch.jobFunction } : {}),
+          })
             .then((remoteMember) => {
               setState((s) => ({
                 ...s,
@@ -643,6 +690,7 @@ function fromApiWorkspaceMember(member: ApiWorkspaceMember): Member {
     color: teamColors[Math.abs(hashString(member.user_id)) % teamColors.length],
     role: member.role,
     workspaceRole: member.role,
+    jobFunction: member.job_function,
     joinedAt: member.joined_at,
     lastAccessedAt: member.last_accessed_at,
   };

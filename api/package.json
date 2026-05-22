@@ -14,6 +14,7 @@
     "openapi:export": "tsx src/docs/export-openapi.ts ../docs/static/openapi/productgen.json",
     "openapi:check": "tsx scripts/check-openapi-sync.ts",
     "db:schema": "tsx scripts/apply-schema.ts",
+    "db:migrate": "tsx scripts/apply-schema.ts --skip-schema",
     "db:seed": "tsx scripts/apply-schema.ts --skip-schema --seed",
     "jwt:keys": "tsx scripts/generate-jwt-keys.ts"
   },

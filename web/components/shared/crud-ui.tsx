@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Columns3, Download, LayoutGrid, List, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Download, Plus, Save, Trash2, X } from "lucide-react";
+import { DiscoveryFilterBar } from "@/components/discovery/discovery-filter-bar";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { shadow } from "@/lib/design-tokens";
-import { cn } from "@/lib/utils";
 
 interface CrumbProps {
   parent?: { label: string; href: string };
@@ -294,88 +293,18 @@ export function ListingToolbar({
   activeView?: ListingView;
   onViewChange?: (view: ListingView) => void;
 }) {
-  const viewIcon = {
-    grid: LayoutGrid,
-    list: List,
-    board: Columns3,
-  } satisfies Record<ListingView, typeof LayoutGrid>;
-
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[var(--bg-elevated)] py-3">
-      {filters.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {filters.map((filter) => {
-            const active = filter.active ?? Boolean(filter.value);
-            return (
-              <button
-                key={filter.label}
-                onClick={filter.onClick}
-                type="button"
-                className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-[13px] transition-colors",
-                  active
-                    ? "border-[rgba(19,200,181,0.30)] bg-[var(--primary-soft-2)] text-[var(--primary)]"
-                    : "border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-muted)] hover:text-[var(--fg)]",
-                )}
-              >
-                <span>{filter.label}</span>
-                {filter.value && (
-                  <>
-                    <span className="text-[var(--fg-disabled)]">·</span>
-                    <span className="font-medium">{filter.value}</span>
-                  </>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="ml-auto flex flex-wrap items-center gap-2">
-        {onSearchChange && (
-          <label className="flex h-10 w-60 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 focus-within:border-[var(--primary)] focus-within:shadow-[0_0_0_3px_rgba(19,200,181,0.15)]">
-            <Search size={16} className="text-[var(--fg-faint)]" aria-hidden />
-            <span className="sr-only">Buscar nesta lista</span>
-            <input
-              type="search"
-              value={search ?? ""}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Buscar nesta lista..."
-              className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--fg)] outline-none placeholder:text-[var(--fg-faint)]"
-            />
-          </label>
-        )}
-
-        {views && activeView && onViewChange && (
-          <div className="flex h-10 items-center rounded-md border border-[var(--border)] bg-[var(--bg-muted)] p-1">
-            {views.map((view) => {
-              const Icon = viewIcon[view.value];
-              const active = view.value === activeView;
-              return (
-                <button
-                  key={view.value}
-                  type="button"
-                  onClick={() => onViewChange(view.value)}
-                  aria-label={`Visualizar como ${view.label}`}
-                  title={`Visualizar como ${view.label}`}
-                  className={cn(
-                    "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-                    active
-                      ? "bg-[var(--bg-elevated)] text-[var(--fg)]"
-                      : "text-[var(--fg-subtle)] hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]",
-                  )}
-                  style={{ boxShadow: active ? shadow.sm : shadow.none }}
-                >
-                  <Icon size={16} aria-hidden />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+    <DiscoveryFilterBar
+      chips={filters}
+      search={search}
+      onSearchChange={onSearchChange}
+      views={views}
+      activeView={activeView}
+      onViewChange={onViewChange}
+    />
   );
 }
+
 
 export function useCrudRouter() {
   return useRouter();
