@@ -67,7 +67,7 @@ function formatSignupValidationError(error: z.ZodError) {
   if (issue.code === "too_small" && field === "full_name") {
     return "Nome completo: informe pelo menos 2 caracteres.";
   }
-  if (issue.code === "invalid_string" && field === "email") {
+  if (issue.code === "invalid_format" && field === "email") {
     return "E-mail: informe um endereço válido.";
   }
   if (field === "password") {
