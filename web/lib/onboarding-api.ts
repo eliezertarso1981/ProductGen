@@ -32,7 +32,7 @@ async function onboardingRequest<T>(
       const body = (await response.json()) as { error?: { message?: string; code?: string } };
       message = body.error?.message ?? message;
       if (response.status === 503 && body.error?.code === "SCHEMA_OUTDATED") {
-        message = body.error.message;
+        message = body.error.message ?? message;
       } else if (response.status >= 500 && message === "Erro interno do servidor") {
         message =
           "Erro interno na API. Confira se as migrações foram aplicadas (npm run db:migrate na pasta api).";
