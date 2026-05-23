@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { AppError } from '../../shared/errors';
+import { AppError, mapDbError } from '../../shared/errors';
 import { hashSignupPassword, validateSignupPassword } from '../../auth/password';
 import { createSession } from '../auth/auth.session';
 import { signAccessToken } from '../../auth/jwt';
@@ -109,43 +109,58 @@ export async function createWorkspaceService(
     throw new AppError(409, 'SLUG_TAKEN', 'Este slug já está em uso');
   }
 
-  const wsResult = await pool.query<{
-    id: string;
-    name: string;
-    slug: string;
-    plan: string;
-    status: string;
-  }>(
-    `INSERT INTO workspaces (
-       name, slug, created_by_user_id, logo_url, company_size, country_code, status, plan
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, 'active', 'free')
-     RETURNING id, name, slug, plan, status`,
-    [
-      input.name,
-      slug,
-      userId,
-      input.logo_url ?? null,
-      input.company_size,
-      input.country_code,
-    ],
-  );
-  const workspace = wsResult.rows[0];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  await pool.query(
-    `INSERT INTO workspace_members (workspace_id, user_id, role)
-     VALUES ($1, $2, 'owner')`,
-    [workspace.id, userId],
-  );
+    const wsResult = await client.query<{
+      id: string;
+      name: string;
+      slug: string;
+      plan: string;
+      status: string;
+    }>(
+      `INSERT INTO workspaces (
+         name, slug, created_by_user_id, logo_url, company_size, country_code, status, plan
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', 'free')
+       RETURNING id, name, slug, plan, status`,
+      [
+        input.name,
+        slug,
+        userId,
+        input.logo_url ?? null,
+        input.company_size,
+        input.country_code,
+      ],
+    );
+    const workspace = wsResult.rows[0];
 
-  return {
-    id: workspace.id,
-    name: workspace.name,
-    slug: workspace.slug,
-    plan: workspace.plan,
-    status: workspace.status,
-    role: 'owner',
-  };
+    await client.query(
+      `INSERT INTO workspace_members (workspace_id, user_id, role)
+       VALUES ($1, $2, 'owner')`,
+      [workspace.id, userId],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      plan: workspace.plan,
+      status: workspace.status,
+      role: 'owner',
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (isPostgresUniqueSlugViolation(err)) {
+      throw new AppError(409, 'SLUG_TAKEN', 'Este slug já está em uso');
+    }
+    mapDbError(err);
+  } finally {
+    client.release();
+  }
 }
 
 export async function updateMeService(pool: Pool, userId: string, input: UpdateMeInput) {
@@ -296,4 +311,13 @@ function isMissingRelationError(err: unknown, relation: string): boolean {
   if (typeof err !== 'object' || err === null || !('code' in err)) return false;
   const pgErr = err as { code?: string; message?: string };
   return pgErr.code === '42P01' && (pgErr.message?.includes(relation) ?? false);
+}
+
+function isPostgresUniqueSlugViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return false;
+  const pgErr = err as { code?: string; constraint?: string; message?: string };
+  return (
+    pgErr.code === '23505' &&
+    (pgErr.constraint?.includes('slug') === true || pgErr.message?.includes('slug') === true)
+  );
 }

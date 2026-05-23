@@ -1,5 +1,5 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { Client } from 'pg';
 
@@ -73,9 +73,14 @@ export async function setup() {
   const schema = readFileSync(schemaPath, 'utf-8');
   await client.query(schema);
 
-  const migrationPath = join(process.cwd(), '..', 'DB', 'migrations', '002_onboarding.sql');
-  const migration = readFileSync(migrationPath, 'utf-8');
-  await client.query(migration);
+  const migrationsDir = join(process.cwd(), '..', 'DB', 'migrations');
+  // productgen_schema.sql already includes 003 usage tables/triggers; re-applying 003 fails.
+  const migrationFiles = readdirSync(migrationsDir)
+    .filter((name) => name.endsWith('.sql') && name !== '003_workspace_usage.sql')
+    .sort((a, b) => a.localeCompare(b));
+  for (const file of migrationFiles) {
+    await client.query(readFileSync(join(migrationsDir, file), 'utf-8'));
+  }
 
   await client.query(`
     CREATE ROLE productgen_app LOGIN PASSWORD 'postgres';

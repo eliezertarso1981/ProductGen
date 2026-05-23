@@ -111,6 +111,83 @@ describe('Onboarding happy path', () => {
   });
 });
 
+describe('POST /workspaces', () => {
+  it('retorna 409 quando o slug já existe', async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const email = `slug-dup-${suffix}@example.com`;
+    const slug = `dup-${suffix}`;
+
+    const signup = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: {
+        full_name: 'Slug Dup User',
+        email,
+        password: SIGNUP_PASSWORD,
+        accept_terms: true,
+      },
+    });
+    expect(signup.statusCode).toBe(201);
+    const token = (JSON.parse(signup.body) as { token: string }).token;
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/workspaces',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: {
+        name: 'Primeira Empresa',
+        slug,
+        company_size: '1-10',
+        country_code: 'BR',
+      },
+    });
+    expect(first.statusCode).toBe(201);
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/workspaces',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: {
+        name: 'Segunda Empresa',
+        slug,
+        company_size: '1-10',
+        country_code: 'BR',
+      },
+    });
+    expect(second.statusCode).toBe(409);
+    const body = JSON.parse(second.body) as { error: { code: string } };
+    expect(body.error.code).toBe('SLUG_TAKEN');
+  });
+
+  it('retorna 400 para logo_url inválida', async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const signup = await app.inject({
+      method: 'POST',
+      url: '/auth/signup',
+      payload: {
+        full_name: 'Invalid Logo User',
+        email: `logo-${suffix}@example.com`,
+        password: SIGNUP_PASSWORD,
+        accept_terms: true,
+      },
+    });
+    const token = (JSON.parse(signup.body) as { token: string }).token;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/workspaces',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: {
+        name: 'Empresa Logo',
+        company_size: '11-50',
+        country_code: 'BR',
+        logo_url: 'not-a-url',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('GET /auth/email-available', () => {
   it('retorna available true para email novo', async () => {
     const res = await app.inject({

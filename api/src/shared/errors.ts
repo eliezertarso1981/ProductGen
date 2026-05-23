@@ -14,6 +14,27 @@ export function mapDbError(err: unknown): never {
   if (!isPostgresError(err)) throw err;
 
   switch (err.code) {
+    case '42703':
+      throw new AppError(
+        503,
+        'SCHEMA_OUTDATED',
+        'Banco desatualizado para esta operação. Na pasta api, execute: npm run db:migrate',
+      );
+    case '42P01':
+      throw new AppError(
+        503,
+        'SCHEMA_OUTDATED',
+        'Tabela ausente no banco. Na pasta api, execute: npm run db:migrate ou npm run db:schema',
+      );
+    case '22P02':
+      if (err.message.includes('workspace_role')) {
+        throw new AppError(
+          503,
+          'SCHEMA_OUTDATED',
+          'Papel de workspace incompatível. Na pasta api, execute: npm run db:migrate',
+        );
+      }
+      throw err;
     case '23505':
       throw new AppError(409, 'CONFLICT', 'Registro duplicado');
     case '23503':

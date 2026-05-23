@@ -5,12 +5,21 @@ import { ThemeToggle } from "./theme-toggle";
 import { TestimonialPanel } from "./testimonial-panel";
 import type { AuthTheme } from "@/lib/theme";
 
+type AuthShellMaxWidth = "sm" | "md" | "lg";
+
+const maxWidthClass: Record<AuthShellMaxWidth, string> = {
+  sm: "max-w-sm",
+  md: "max-w-md",
+  lg: "max-w-lg",
+};
+
 interface AuthShellProps {
   children: (theme: AuthTheme) => React.ReactNode;
   showFooter?: boolean;
+  maxWidth?: AuthShellMaxWidth;
 }
 
-export function AuthShell({ children, showFooter = true }: AuthShellProps) {
+export function AuthShell({ children, showFooter = true, maxWidth = "sm" }: AuthShellProps) {
   const [theme, setTheme, ready] = useAuthTheme();
   const p = palette[theme];
 
@@ -32,7 +41,7 @@ export function AuthShell({ children, showFooter = true }: AuthShellProps) {
         </div>
 
         <div className="flex w-full flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
+          <div className={`mx-auto flex w-full ${maxWidthClass[maxWidth]} flex-1 flex-col justify-center`}>
             {children(theme)}
           </div>
 

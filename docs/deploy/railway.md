@@ -87,9 +87,11 @@ Headers corretos:
 
 Erro `DATABASE_URL: Required` → adicione `DATABASE_URL=${{NomeDoServicoPostgres.DATABASE_URL}}`.
 
-## Onboarding (signup) — erro 500 / “Erro interno do servidor”
+## Onboarding (signup / workspace) — erro 500 em `POST /workspaces`
 
-O fluxo `/signup` precisa das tabelas da migração `DB/migrations/002_onboarding.sql` (`email_verification_tokens`, colunas extras em `workspaces`, etc.). Se o Postgres foi criado **antes** dessa feature, rode **uma vez** no seu PC com a URL pública do Railway:
+O passo **criar workspace** (`POST /workspaces`) insere colunas como `created_by_user_id`, `plan`, `logo_url`, `company_size`, `country_code`, `status` e o membro com papel `owner`. Bancos criados só com dump antigo ou sem migrações retornam 500 (coluna/tabela/enum ausente).
+
+Rode **uma vez** no seu PC com `DATABASE_PUBLIC_URL` do Postgres Railway:
 
 ```bash
 cd api
@@ -97,9 +99,14 @@ set DATABASE_URL=postgresql://...@ballast.proxy.rlwy.net:PORT/railway
 npm run db:migrate
 ```
 
-(`npm run db:schema` também aplica migrações; `db:migrate` só roda as migrações, sem recriar o schema inteiro.)
+Isso aplica, em ordem, `DB/migrations/002_onboarding.sql` … `005_workspace_create_prerequisites.sql` (e demais `.sql` da pasta).
 
-Depois **redeploy** a API (ou reinicie o serviço) e tente o cadastro de novo.
+- `npm run db:schema` — schema completo + migrações (ambiente novo).
+- `npm run db:migrate` — só migrações (produção já com tabelas base).
+
+Depois **redeploy** ou reinicie a API e repita signup → workspace.
+
+Se a API estiver atualizada, erros de schema passam a responder **503** com código `SCHEMA_OUTDATED` e mensagem pedindo `npm run db:migrate` (em vez de 500 genérico).
 
 ## Sentry (monitoramento de erros — plano free)
 

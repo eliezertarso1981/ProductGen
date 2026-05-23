@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { BrandMark } from "@/components/auth/brand-mark";
+import { DiscoveryFlowIntro } from "@/components/onboarding/discovery-flow-intro";
+import { DiscoveryFlowStrip } from "@/components/onboarding/discovery-flow-strip";
+import { OnboardingCard } from "@/components/onboarding/onboarding-card";
+import { OnboardingStepHeader } from "@/components/onboarding/onboarding-step-header";
 import { palette, brand } from "@/lib/theme";
+import type { DiscoveryStageId } from "@/lib/onboarding-discovery";
 import { completeOnboardingInApi, isOnboardingApiConfigured } from "@/lib/onboarding-api";
 import {
   bootstrapProductgenAuth,
@@ -28,18 +33,33 @@ const PILLAR_TEMPLATES = [
   },
 ];
 
-type Step = 1 | 2 | 3 | "done";
+type Step = "intro" | 1 | 2 | 3 | "done";
 
-const STEP_TITLES: Record<Step, string> = {
-  1: "Cadastre seu primeiro produto",
-  2: "Defina seus pilares estratégicos",
-  3: "Cadastre seus primeiros OKRs",
-  done: "Tudo pronto!",
+const CONFIG_STEPS = 3;
+
+const STEP_META: Record<Exclude<Step, "intro" | "done">, { title: string; subtitle: string }> = {
+  1: {
+    title: "Cadastre seu primeiro produto",
+    subtitle: "É o ponto de partida do seu fluxo de discovery.",
+  },
+  2: {
+    title: "Defina seus pilares estratégicos",
+    subtitle: "Organize a estratégia em torno do produto que você acabou de criar.",
+  },
+  3: {
+    title: "Cadastre seus primeiros OKRs",
+    subtitle: "Opcional — você pode configurar objetivos e resultados-chave depois.",
+  },
 };
+
+function stageForConfigStep(step: 1 | 2 | 3): DiscoveryStageId {
+  if (step === 1) return "product";
+  return "product";
+}
 
 export default function OnboardingPage() {
   return (
-    <AuthShell showFooter={false}>
+    <AuthShell showFooter={false} maxWidth="md">
       {(theme) => <OnboardingWizard theme={theme} p={palette[theme]} />}
     </AuthShell>
   );
@@ -53,11 +73,13 @@ function OnboardingWizard({
   p: (typeof palette)["light" | "dark"];
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>("intro");
   const [productId, setProductId] = useState<string | null>(null);
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
-  const [pillars, setPillars] = useState<Array<{ name: string; description: string }>>([{ name: "", description: "" }]);
+  const [pillars, setPillars] = useState<Array<{ name: string; description: string }>>([
+    { name: "", description: "" },
+  ]);
   const [objectiveTitle, setObjectiveTitle] = useState("");
   const [krTitle, setKrTitle] = useState("");
   const [summary, setSummary] = useState({ products: 0, pillars: 0, okrs: 0 });
@@ -94,7 +116,7 @@ function OnboardingWizard({
   };
 
   const savePillars = async () => {
-    const valid = pillars.filter((p) => p.name.trim().length >= 2);
+    const valid = pillars.filter((pl) => pl.name.trim().length >= 2);
     if (valid.length < 1) {
       setError("Adicione pelo menos um pilar.");
       return;
@@ -162,162 +184,209 @@ function OnboardingWizard({
     setStep("done");
   };
 
+  const inputClass =
+    "w-full rounded-xl border px-3 py-2.5 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30";
+  const inputStyle = {
+    borderColor: p.border,
+    backgroundColor: p.inputBg,
+    color: p.textPrimary,
+    boxShadow: "var(--shadow-sm)",
+  };
+
   return (
     <>
-      <div className="mb-8">
+      <div className="mb-6">
         <BrandMark theme={theme} />
       </div>
-      <h1 className="text-3xl font-semibold" style={{ color: p.textPrimary }}>
-        {STEP_TITLES[step]}
-      </h1>
-      {step !== "done" ? (
-        <p className="mt-2 text-sm" style={{ color: p.textSecondary }}>
-          Etapa {step} de 3
-        </p>
-      ) : null}
 
-      {error ? (
-        <p className="mt-4 text-sm" style={{ color: brand.danger }}>
-          {error}
-        </p>
-      ) : null}
-
-      {step === 1 && (
-        <div className="mt-6 space-y-4">
-          <input
-            className="w-full rounded-xl border px-3 py-2.5 text-sm"
-            style={{ borderColor: p.border, backgroundColor: p.inputBg, color: p.textPrimary }}
-            placeholder="Nome do produto"
-            value={productName}
-            onChange={(e) => setProductName(e.target.value)}
-          />
-          <textarea
-            className="w-full rounded-xl border px-3 py-2.5 text-sm"
-            style={{ borderColor: p.border, backgroundColor: p.inputBg, color: p.textPrimary }}
-            placeholder="Descrição curta (opcional)"
-            rows={3}
-            value={productDescription}
-            onChange={(e) => setProductDescription(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => void saveProduct()}
-            disabled={loading}
-            className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-            style={{ backgroundColor: brand.primary }}
-          >
-            {loading ? <Loader2 className="mx-auto animate-spin" size={18} /> : "Continuar"}
-          </button>
-        </div>
+      {step === "intro" && (
+        <DiscoveryFlowIntro theme={theme} onContinue={() => setStep(1)} />
       )}
 
-      {step === 2 && (
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {PILLAR_TEMPLATES.map((tpl) => (
-              <button
-                key={tpl.label}
-                type="button"
-                className="rounded-lg border px-3 py-1.5 text-xs"
-                style={{ borderColor: p.border, color: p.textSecondary }}
-                onClick={() =>
-                  setPillars(tpl.pillars.map((name) => ({ name, description: "" })))
-                }
-              >
-                {tpl.label}
-              </button>
-            ))}
-          </div>
-          {pillars.map((pillar, index) => (
-            <div key={index} className="space-y-2">
-              <input
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-                style={{ borderColor: p.border, backgroundColor: p.inputBg, color: p.textPrimary }}
-                placeholder={`Pilar ${index + 1}`}
-                value={pillar.name}
-                onChange={(e) => {
-                  const next = [...pillars];
-                  next[index] = { ...next[index], name: e.target.value };
-                  setPillars(next);
-                }}
-              />
-            </div>
-          ))}
-          <button
-            type="button"
-            className="text-sm underline"
-            style={{ color: brand.primary }}
-            onClick={() => setPillars([...pillars, { name: "", description: "" }])}
-          >
-            + Adicionar pilar
-          </button>
-          <button
-            type="button"
-            onClick={() => void savePillars()}
-            disabled={loading}
-            className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-            style={{ backgroundColor: brand.primary }}
-          >
-            {loading ? <Loader2 className="mx-auto animate-spin" size={18} /> : "Continuar"}
-          </button>
-        </div>
-      )}
+      {step !== "intro" && step !== "done" && (
+        <>
+          <OnboardingStepHeader
+            theme={theme}
+            title={STEP_META[step].title}
+            subtitle={STEP_META[step].subtitle}
+            stepIndex={step}
+            totalSteps={CONFIG_STEPS}
+          />
 
-      {step === 3 && (
-        <div className="mt-6 space-y-4">
-          <input
-            className="w-full rounded-xl border px-3 py-2.5 text-sm"
-            style={{ borderColor: p.border, backgroundColor: p.inputBg, color: p.textPrimary }}
-            placeholder="Título do Objective"
-            value={objectiveTitle}
-            onChange={(e) => setObjectiveTitle(e.target.value)}
-          />
-          <input
-            className="w-full rounded-xl border px-3 py-2.5 text-sm"
-            style={{ borderColor: p.border, backgroundColor: p.inputBg, color: p.textPrimary }}
-            placeholder="Título do Key Result"
-            value={krTitle}
-            onChange={(e) => setKrTitle(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => void finishOkrs(false)}
-            disabled={loading}
-            className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-            style={{ backgroundColor: brand.primary }}
-          >
-            Concluir OKRs
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Configurar OKRs depois? Você pode adicioná-los no dashboard.")) {
-                void finishOkrs(true);
-              }
-            }}
-            className="w-full text-sm underline"
-            style={{ color: p.textSecondary }}
-          >
-            Configurar depois
-          </button>
-        </div>
+          <OnboardingCard theme={theme} className="mb-4">
+            <p className="mb-3 text-xs font-medium uppercase tracking-wider" style={{ color: p.textSecondary }}>
+              Seu fluxo de discovery
+            </p>
+            <DiscoveryFlowStrip theme={theme} activeId={stageForConfigStep(step)} compact />
+          </OnboardingCard>
+
+          {error ? (
+            <p className="mb-4 text-sm" style={{ color: brand.danger }}>
+              {error}
+            </p>
+          ) : null}
+
+          {step === 1 && (
+            <OnboardingCard theme={theme}>
+              <div className="space-y-4">
+                <input
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Nome do produto"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                />
+                <textarea
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Descrição curta (opcional)"
+                  rows={3}
+                  value={productDescription}
+                  onChange={(e) => setProductDescription(e.target.value)}
+                />
+                <PrimaryButton loading={loading} onClick={() => void saveProduct()}>
+                  Continuar
+                </PrimaryButton>
+              </div>
+            </OnboardingCard>
+          )}
+
+          {step === 2 && (
+            <OnboardingCard theme={theme}>
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {PILLAR_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.label}
+                      type="button"
+                      className="rounded-lg border px-3 py-1.5 text-xs transition-shadow hover:shadow-sm"
+                      style={{ borderColor: p.border, color: p.textSecondary, boxShadow: "var(--shadow-sm)" }}
+                      onClick={() =>
+                        setPillars(tpl.pillars.map((name) => ({ name, description: "" })))
+                      }
+                    >
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+                {pillars.map((pillar, index) => (
+                  <input
+                    key={index}
+                    className={inputClass}
+                    style={inputStyle}
+                    placeholder={`Pilar ${index + 1}`}
+                    value={pillar.name}
+                    onChange={(e) => {
+                      const next = [...pillars];
+                      next[index] = { ...next[index], name: e.target.value };
+                      setPillars(next);
+                    }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  className="text-sm underline"
+                  style={{ color: brand.primary }}
+                  onClick={() => setPillars([...pillars, { name: "", description: "" }])}
+                >
+                  + Adicionar pilar
+                </button>
+                <PrimaryButton loading={loading} onClick={() => void savePillars()}>
+                  Continuar
+                </PrimaryButton>
+              </div>
+            </OnboardingCard>
+          )}
+
+          {step === 3 && (
+            <OnboardingCard theme={theme}>
+              <div className="space-y-4">
+                <input
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Título do Objective"
+                  value={objectiveTitle}
+                  onChange={(e) => setObjectiveTitle(e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Título do Key Result"
+                  value={krTitle}
+                  onChange={(e) => setKrTitle(e.target.value)}
+                />
+                <PrimaryButton loading={loading} onClick={() => void finishOkrs(false)}>
+                  Concluir OKRs
+                </PrimaryButton>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Configurar OKRs depois? Você pode adicioná-los no dashboard."
+                      )
+                    ) {
+                      void finishOkrs(true);
+                    }
+                  }}
+                  className="w-full text-sm underline"
+                  style={{ color: p.textSecondary }}
+                >
+                  Configurar depois
+                </button>
+              </div>
+            </OnboardingCard>
+          )}
+        </>
       )}
 
       {step === "done" && (
-        <div className="mt-8 space-y-4">
-          <p className="text-sm" style={{ color: p.textSecondary }}>
-            {summary.products} produto · {summary.pillars} pilares · {summary.okrs} OKR(s)
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            className="w-full rounded-xl py-3 text-sm font-semibold text-white"
-            style={{ backgroundColor: brand.primary }}
-          >
-            Ir para meu Dashboard
-          </button>
-        </div>
+        <>
+          <OnboardingStepHeader
+            theme={theme}
+            title="Tudo pronto!"
+            subtitle="Seu workspace está configurado. Explore o discovery no dashboard."
+            stepIndex={CONFIG_STEPS}
+            totalSteps={CONFIG_STEPS}
+          />
+          <OnboardingCard theme={theme}>
+            <DiscoveryFlowStrip theme={theme} compact />
+            <p className="mt-4 text-sm" style={{ color: p.textSecondary }}>
+              {summary.products} produto · {summary.pillars} pilares · {summary.okrs} OKR(s)
+            </p>
+            <div className="mt-6">
+              <PrimaryButton onClick={() => router.push("/dashboard")}>
+                Ir para meu Dashboard
+              </PrimaryButton>
+            </div>
+          </OnboardingCard>
+        </>
       )}
     </>
+  );
+}
+
+function PrimaryButton({
+  children,
+  loading,
+  onClick,
+}: {
+  children: React.ReactNode;
+  loading?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white disabled:opacity-70"
+      style={{
+        background: "linear-gradient(135deg, var(--primary) 0%, #21a3a3 100%)",
+        boxShadow: "0 12px 28px -8px rgba(19, 200, 181, 0.45)",
+      }}
+    >
+      {loading ? <Loader2 className="animate-spin" size={18} /> : children}
+    </button>
   );
 }
