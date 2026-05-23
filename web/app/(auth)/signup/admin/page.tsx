@@ -11,7 +11,11 @@ import { isOnboardingApiConfigured, updateMeInApi } from "@/lib/onboarding-api";
 import { bootstrapProductgenAuth, isProductgenApiConfigured } from "@/lib/productgen-api";
 
 export default function SignupAdminPage() {
-  return <AuthShell>{(theme) => <AdminForm theme={theme} p={palette[theme]} />}</AuthShell>;
+  return (
+    <AuthShell showTestimonial={false}>
+      {(theme) => <AdminForm theme={theme} p={palette[theme]} />}
+    </AuthShell>
+  );
 }
 
 function AdminForm({

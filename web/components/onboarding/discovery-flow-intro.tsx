@@ -16,9 +16,16 @@ import { PaginationDots } from "./pagination-dots";
 type DiscoveryFlowIntroProps = {
   theme: AuthTheme;
   onContinue: () => void;
+  onSkipFull?: () => void;
+  skipDisabled?: boolean;
 };
 
-export function DiscoveryFlowIntro({ theme, onContinue }: DiscoveryFlowIntroProps) {
+export function DiscoveryFlowIntro({
+  theme,
+  onContinue,
+  onSkipFull,
+  skipDisabled,
+}: DiscoveryFlowIntroProps) {
   const p = palette[theme];
   const isDark = theme === "dark";
   const [slideIndex, setSlideIndex] = useState(0);
@@ -180,6 +187,20 @@ export function DiscoveryFlowIntro({ theme, onContinue }: DiscoveryFlowIntroProp
           <ArrowRight size={16} />
         </button>
       </div>
+
+      {onSkipFull ? (
+        <p className="text-center">
+          <button
+            type="button"
+            disabled={skipDisabled}
+            onClick={onSkipFull}
+            className="text-sm underline disabled:opacity-60"
+            style={{ color: p.textSecondary }}
+          >
+            Pular configuração
+          </button>
+        </p>
+      ) : null}
     </div>
   );
 }

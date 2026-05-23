@@ -749,10 +749,19 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, retry = true)
   if (!response.ok) {
     let message = "Erro ao chamar a API do ProductDiscovery.";
     try {
-      const body = (await response.json()) as { error?: { message?: string } };
+      const body = (await response.json()) as { error?: { message?: string; code?: string } };
       message = body.error?.message ?? message;
+      if (response.status === 503 && body.error?.code === "SCHEMA_OUTDATED") {
+        message = body.error.message ?? message;
+      } else if (response.status >= 500 && message === "Erro interno do servidor") {
+        message =
+          "Erro interno na API. Confira se as migrações foram aplicadas (npm run db:migrate na pasta api).";
+      }
     } catch {
-      // Mantem a mensagem padrão se a resposta não for JSON.
+      if (response.status >= 500) {
+        message =
+          "Erro interno na API. Confira os logs do servidor e se rodou npm run db:migrate na pasta api.";
+      }
     }
     throw new Error(message);
   }

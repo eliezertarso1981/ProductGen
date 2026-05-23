@@ -5,21 +5,29 @@ import { ThemeToggle } from "./theme-toggle";
 import { TestimonialPanel } from "./testimonial-panel";
 import type { AuthTheme } from "@/lib/theme";
 
-type AuthShellMaxWidth = "sm" | "md" | "lg";
+type AuthShellMaxWidth = "sm" | "md" | "lg" | "xl" | "full";
 
 const maxWidthClass: Record<AuthShellMaxWidth, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
+  xl: "max-w-6xl",
+  full: "max-w-full",
 };
 
 interface AuthShellProps {
   children: (theme: AuthTheme) => React.ReactNode;
   showFooter?: boolean;
+  showTestimonial?: boolean;
   maxWidth?: AuthShellMaxWidth;
 }
 
-export function AuthShell({ children, showFooter = true, maxWidth = "sm" }: AuthShellProps) {
+export function AuthShell({
+  children,
+  showFooter = true,
+  showTestimonial = true,
+  maxWidth = "sm",
+}: AuthShellProps) {
   const [theme, setTheme, ready] = useAuthTheme();
   const p = palette[theme];
 
@@ -29,7 +37,7 @@ export function AuthShell({ children, showFooter = true, maxWidth = "sm" }: Auth
 
   return (
     <div
-      className="grid min-h-screen grid-cols-1 md:grid-cols-2"
+      className={showTestimonial ? "grid min-h-screen grid-cols-1 md:grid-cols-2" : "min-h-screen"}
       style={{ backgroundColor: p.canvas }}
     >
       <div className="relative flex flex-col px-6 py-10 md:px-16 md:py-12">
@@ -67,7 +75,7 @@ export function AuthShell({ children, showFooter = true, maxWidth = "sm" }: Auth
         </div>
       </div>
 
-      <TestimonialPanel />
+      {showTestimonial ? <TestimonialPanel /> : null}
     </div>
   );
 }

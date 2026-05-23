@@ -15,6 +15,7 @@
     "openapi:check": "tsx scripts/check-openapi-sync.ts",
     "db:schema": "tsx scripts/apply-schema.ts",
     "db:migrate": "tsx scripts/apply-schema.ts --skip-schema",
+    "db:migrate:prod": "node dist/db/run-migrations.js",
     "db:seed": "tsx scripts/apply-schema.ts --skip-schema --seed",
     "jwt:keys": "tsx scripts/generate-jwt-keys.ts"
   },

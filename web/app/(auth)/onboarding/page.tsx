@@ -59,7 +59,7 @@ function stageForConfigStep(step: 1 | 2 | 3): DiscoveryStageId {
 
 export default function OnboardingPage() {
   return (
-    <AuthShell showFooter={false} maxWidth="md">
+    <AuthShell showTestimonial={false} showFooter={false} maxWidth="md">
       {(theme) => <OnboardingWizard theme={theme} p={palette[theme]} />}
     </AuthShell>
   );
@@ -90,6 +90,34 @@ function OnboardingWizard({
     if (!isProductgenApiConfigured()) return;
     bootstrapProductgenAuth().catch(() => router.replace("/signup"));
   }, [router]);
+
+  const persistOnboardingComplete = async (): Promise<boolean> => {
+    if (!isOnboardingApiConfigured()) return true;
+    try {
+      await completeOnboardingInApi();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível concluir o onboarding.");
+      return false;
+    }
+  };
+
+  const skipFullOnboarding = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(undefined);
+    const ok = await persistOnboardingComplete();
+    setLoading(false);
+    if (ok) router.push("/dashboard");
+  };
+
+  const skipCurrentStep = () => {
+    if (loading) return;
+    setError(undefined);
+    if (step === 1) setStep(2);
+    else if (step === 2) setStep(3);
+    else if (step === 3) void finishOkrs(true);
+  };
 
   const saveProduct = async () => {
     if (!productName.trim()) {
@@ -168,20 +196,12 @@ function OnboardingWizard({
       setLoading(false);
     }
 
-    setSummary((s) => ({ ...s, products: 1 }));
-    if (isOnboardingApiConfigured()) {
-      setLoading(true);
-      setError(undefined);
-      try {
-        await completeOnboardingInApi();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Não foi possível concluir o onboarding.");
-        setLoading(false);
-        return;
-      }
-      setLoading(false);
-    }
-    setStep("done");
+    setSummary((s) => ({ ...s, products: productId ? 1 : s.products }));
+    setLoading(true);
+    setError(undefined);
+    const ok = await persistOnboardingComplete();
+    setLoading(false);
+    if (ok) setStep("done");
   };
 
   const inputClass =
@@ -195,12 +215,28 @@ function OnboardingWizard({
 
   return (
     <>
-      <div className="mb-6">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <BrandMark theme={theme} />
+        {step !== "done" ? (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void skipFullOnboarding()}
+            className="shrink-0 text-sm underline disabled:opacity-60"
+            style={{ color: p.textSecondary }}
+          >
+            Ir para o dashboard
+          </button>
+        ) : null}
       </div>
 
       {step === "intro" && (
-        <DiscoveryFlowIntro theme={theme} onContinue={() => setStep(1)} />
+        <DiscoveryFlowIntro
+          theme={theme}
+          onContinue={() => setStep(1)}
+          onSkipFull={() => void skipFullOnboarding()}
+          skipDisabled={loading}
+        />
       )}
 
       {step !== "intro" && step !== "done" && (
@@ -247,6 +283,13 @@ function OnboardingWizard({
                 <PrimaryButton loading={loading} onClick={() => void saveProduct()}>
                   Continuar
                 </PrimaryButton>
+                <StepSkipLink
+                  label="Pular esta etapa"
+                  hint="Você pode cadastrar produtos no dashboard depois."
+                  disabled={loading}
+                  onClick={skipCurrentStep}
+                  color={p.textSecondary}
+                />
               </div>
             </OnboardingCard>
           )}
@@ -294,6 +337,13 @@ function OnboardingWizard({
                 <PrimaryButton loading={loading} onClick={() => void savePillars()}>
                   Continuar
                 </PrimaryButton>
+                <StepSkipLink
+                  label="Pular esta etapa"
+                  hint="Você pode definir pilares estratégicos no dashboard depois."
+                  disabled={loading}
+                  onClick={skipCurrentStep}
+                  color={p.textSecondary}
+                />
               </div>
             </OnboardingCard>
           )}
@@ -318,22 +368,13 @@ function OnboardingWizard({
                 <PrimaryButton loading={loading} onClick={() => void finishOkrs(false)}>
                   Concluir OKRs
                 </PrimaryButton>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Configurar OKRs depois? Você pode adicioná-los no dashboard."
-                      )
-                    ) {
-                      void finishOkrs(true);
-                    }
-                  }}
-                  className="w-full text-sm underline"
-                  style={{ color: p.textSecondary }}
-                >
-                  Configurar depois
-                </button>
+                <StepSkipLink
+                  label="Configurar depois"
+                  hint="Você pode adicionar OKRs no dashboard a qualquer momento."
+                  disabled={loading}
+                  onClick={skipCurrentStep}
+                  color={p.textSecondary}
+                />
               </div>
             </OnboardingCard>
           )}
@@ -363,6 +404,39 @@ function OnboardingWizard({
         </>
       )}
     </>
+  );
+}
+
+function StepSkipLink({
+  label,
+  hint,
+  disabled,
+  onClick,
+  color,
+}: {
+  label: string;
+  hint?: string;
+  disabled?: boolean;
+  onClick: () => void;
+  color: string;
+}) {
+  return (
+    <div className="space-y-1 pt-1 text-center">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        className="text-sm underline disabled:opacity-60"
+        style={{ color }}
+      >
+        {label}
+      </button>
+      {hint ? (
+        <p className="text-xs" style={{ color }}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

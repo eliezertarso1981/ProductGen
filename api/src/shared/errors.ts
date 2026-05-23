@@ -57,3 +57,15 @@ export function mapDbError(err: unknown): never {
 function isPostgresError(err: unknown): err is { code: string; message: string } {
   return typeof err === 'object' && err !== null && 'code' in err && 'message' in err;
 }
+
+/** Maps known Postgres errors to AppError; returns undefined if the error is not a mapped DB error. */
+export function resolveDbError(err: unknown): AppError | undefined {
+  if (!isPostgresError(err)) return undefined;
+  try {
+    mapDbError(err);
+    return undefined;
+  } catch (mapped) {
+    if (mapped instanceof AppError) return mapped;
+    throw mapped;
+  }
+}

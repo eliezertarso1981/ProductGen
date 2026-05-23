@@ -18,7 +18,11 @@ import { planLimitRows } from "@/lib/plan-display";
 const WORKSPACE_KEY = "productgen-api-workspace-id-v1";
 
 export default function SignupPlanPage() {
-  return <AuthShell>{(theme) => <PlanForm theme={theme} p={palette[theme]} />}</AuthShell>;
+  return (
+    <AuthShell showTestimonial={false} showFooter={false} maxWidth="xl">
+      {(theme) => <PlanForm theme={theme} p={palette[theme]} />}
+    </AuthShell>
+  );
 }
 
 function PlanForm({
@@ -101,59 +105,57 @@ function PlanForm({
         Passo 4 de 4 — sem cobrança nesta versão
       </p>
 
-      <div className="mt-8 grid gap-4">
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (
           <div
             key={plan.code}
-            className="rounded-2xl border p-5"
+            className="flex min-h-[320px] flex-col rounded-2xl border p-5"
             style={{ borderColor: p.border, backgroundColor: p.inputBg }}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold" style={{ color: p.textPrimary }}>
-                  {plan.name}
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed" style={{ color: p.textSecondary }}>
-                  {plan.display.description}
-                </p>
-                <ul className="mt-4 space-y-2">
-                  {planLimitRows(plan).map((row) => (
-                    <li
-                      key={row.label}
-                      className="flex items-baseline justify-between gap-4 text-sm"
-                      style={{ color: p.textPrimary }}
-                    >
-                      <span style={{ color: p.textSecondary }}>{row.label}</span>
-                      <span className="font-medium tabular-nums">{row.value}</span>
+            <div className="flex flex-1 flex-col">
+              <h2 className="text-lg font-semibold" style={{ color: p.textPrimary }}>
+                {plan.name}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: p.textSecondary }}>
+                {plan.display.description}
+              </p>
+              <ul className="mt-4 space-y-2">
+                {planLimitRows(plan).map((row) => (
+                  <li
+                    key={row.label}
+                    className="flex items-baseline justify-between gap-4 text-sm"
+                    style={{ color: p.textPrimary }}
+                  >
+                    <span style={{ color: p.textSecondary }}>{row.label}</span>
+                    <span className="font-medium tabular-nums">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+              {plan.display.highlights && plan.display.highlights.length > 0 ? (
+                <ul className="mt-3 space-y-1 border-t pt-3 text-xs" style={{ borderColor: p.border }}>
+                  {plan.display.highlights.map((item) => (
+                    <li key={item} style={{ color: p.textSecondary }}>
+                      · {item}
                     </li>
                   ))}
                 </ul>
-                {plan.display.highlights && plan.display.highlights.length > 0 ? (
-                  <ul className="mt-3 space-y-1 border-t pt-3 text-xs" style={{ borderColor: p.border }}>
-                    {plan.display.highlights.map((item) => (
-                      <li key={item} style={{ color: p.textSecondary }}>
-                        · {item}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                disabled={Boolean(loadingPlan)}
-                onClick={() => void selectPlan(plan.code)}
-                className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
-                style={{ backgroundColor: brand.primary }}
-              >
-                {loadingPlan === plan.code ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : plan.code === "enterprise" ? (
-                  "Falar com vendas"
-                ) : (
-                  "Começar"
-                )}
-              </button>
+              ) : null}
             </div>
+            <button
+              type="button"
+              disabled={Boolean(loadingPlan)}
+              onClick={() => void selectPlan(plan.code)}
+              className="mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-70"
+              style={{ backgroundColor: brand.primary }}
+            >
+              {loadingPlan === plan.code ? (
+                <Loader2 size={16} className="mx-auto animate-spin" />
+              ) : plan.code === "enterprise" ? (
+                "Falar com vendas"
+              ) : (
+                "Começar"
+              )}
+            </button>
           </div>
         ))}
       </div>

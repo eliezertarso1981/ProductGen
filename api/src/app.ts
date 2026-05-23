@@ -3,7 +3,7 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import sensible from '@fastify/sensible';
 import { config } from './config/env';
-import { AppError } from './shared/errors';
+import { AppError, resolveDbError } from './shared/errors';
 import './shared/types';
 import { authRoutes } from './modules/auth/auth.routes';
 import { painsRoutes } from './modules/pains/pains.routes';
@@ -63,6 +63,12 @@ export function buildApp() {
     if (isFastifyValidationError(err)) {
       return reply.status(400).send({
         error: { code: 'VALIDATION_ERROR', message: err.message },
+      });
+    }
+    const dbError = resolveDbError(err);
+    if (dbError) {
+      return reply.status(dbError.statusCode).send({
+        error: { code: dbError.code, message: dbError.message },
       });
     }
     app.log.error(err);

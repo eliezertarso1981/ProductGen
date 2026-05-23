@@ -27,6 +27,10 @@ O repositório tem **api/** e **web/**. Cada serviço na Railway precisa de um *
 
 - `NEXT_PUBLIC_PRODUCTGEN_API_URL` = URL pública da API (**no build**)
 
+## Web — logos 404 (`/logo/*.svg`)
+
+O `Dockerfile` em `web/` precisa copiar `public/` para o estágio final. Sem isso, `/logo/productdiscovery-logo.svg` retorna 404 em produção. Após corrigir, redeploy do serviço **web** com **Clear build cache**.
+
 ## Web — build falha em `strategy-store.tsx` / snapshot antigo
 
 Se o log ainda mostra `status: patch.status` na linha ~588, a Railway **não está usando o `main` atual** (o snapshot `sha256:9f74eaca...` é de um commit antigo).
@@ -45,6 +49,35 @@ cd api
 DATABASE_URL="..." npm run db:schema
 DATABASE_URL="..." npm run db:seed   # opcional
 ```
+
+## API — não use `npm run db:migrate` como Pre-deploy
+
+O container de produção roda `npm ci --omit=dev`: **`tsx` não existe** (`sh: tsx: not found`). O build pode passar e o **deploy falha** no pre-deploy.
+
+| Comando | Onde usar |
+|---------|-----------|
+| `npm run db:migrate` | **Seu PC** (com `tsx` e monorepo completo) |
+| `npm run db:migrate:prod` | **Dentro da imagem** após deploy (usa `node dist/db/run-migrations.js`) |
+
+**Recomendado:** migração **local** antes do deploy (sem pre-deploy):
+
+```powershell
+cd api
+$env:DATABASE_URL = "<DATABASE_PUBLIC_URL do Postgres Railway>"
+npm run db:migrate
+```
+
+**Opcional (pre-deploy na Railway):** só depois de redeploy com imagem que inclui `migrations/`:
+
+```bash
+node dist/db/run-migrations.js
+```
+
+Nunca `npm run db:migrate` no pre-deploy (depende de `tsx`).
+
+Ao criar migração em `DB/migrations/`, copie para `api/migrations/` (ver `api/migrations/README.md`).
+
+Migrações relevantes para o onboarding (passos 2–3): `002`–`006` (workspace/onboarding, `onboarded_at`, códigos humanos em pilares/OKRs/KRs).
 
 ## Troubleshooting — health check `/health` falha
 

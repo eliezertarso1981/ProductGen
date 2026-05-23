@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import { AppError, mapDbError } from '../../shared/errors';
 import { hashSignupPassword, validateSignupPassword } from '../../auth/password';
-import { createSession } from '../auth/auth.session';
+import { createSession, revokeAllSessionsService } from '../auth/auth.session';
 import { signAccessToken } from '../../auth/jwt';
 import { slugifyName, ensureUniqueSlug } from '../../shared/slug';
 import { getPlanDefinition } from '../../config/plans';
@@ -19,10 +19,38 @@ import type {
 
 export async function isEmailAvailable(pool: Pool, email: string): Promise<boolean> {
   const result = await pool.query<{ id: string }>(
-    `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1`,
+    `SELECT u.id
+     FROM users u
+     WHERE u.email = $1
+       AND u.deleted_at IS NULL
+       AND EXISTS (
+         SELECT 1
+         FROM workspace_members wm
+         WHERE wm.user_id = u.id
+           AND wm.removed_at IS NULL
+       )
+     LIMIT 1`,
     [email.toLowerCase()],
   );
   return !result.rows[0];
+}
+
+async function findIncompleteSignupUserId(pool: Pool, email: string): Promise<string | null> {
+  const result = await pool.query<{ id: string }>(
+    `SELECT u.id
+     FROM users u
+     WHERE u.email = $1
+       AND u.deleted_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1
+         FROM workspace_members wm
+         WHERE wm.user_id = u.id
+           AND wm.removed_at IS NULL
+       )
+     LIMIT 1`,
+    [email.toLowerCase()],
+  );
+  return result.rows[0]?.id ?? null;
 }
 
 export async function isSlugAvailable(
@@ -49,24 +77,54 @@ export async function signupService(
 ) {
   validateSignupPassword(input.password);
 
-  const available = await isEmailAvailable(pool, input.email);
-  if (!available) {
-    throw new AppError(409, 'EMAIL_TAKEN', 'Este e-mail já está cadastrado');
+  const normalizedEmail = input.email.toLowerCase();
+  const incompleteUserId = await findIncompleteSignupUserId(pool, normalizedEmail);
+
+  if (!incompleteUserId) {
+    const available = await isEmailAvailable(pool, normalizedEmail);
+    if (!available) {
+      throw new AppError(409, 'EMAIL_TAKEN', 'Este e-mail já está cadastrado');
+    }
   }
 
   const passwordHash = await hashSignupPassword(input.password);
-  const userResult = await pool.query<{
-    id: string;
-    name: string;
-    email: string;
-    email_verified_at: string | null;
-  }>(
-    `INSERT INTO users (email, name, password_hash)
-     VALUES ($1, $2, $3)
-     RETURNING id, name, email, email_verified_at`,
-    [input.email.toLowerCase(), input.full_name, passwordHash],
-  );
+
+  const userResult = incompleteUserId
+    ? await pool.query<{
+        id: string;
+        name: string;
+        email: string;
+        email_verified_at: string | null;
+      }>(
+        `UPDATE users
+         SET name = $2,
+             password_hash = $3,
+             updated_at = now()
+         WHERE id = $1
+           AND deleted_at IS NULL
+         RETURNING id, name, email, email_verified_at`,
+        [incompleteUserId, input.full_name, passwordHash],
+      )
+    : await pool.query<{
+        id: string;
+        name: string;
+        email: string;
+        email_verified_at: string | null;
+      }>(
+        `INSERT INTO users (email, name, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING id, name, email, email_verified_at`,
+        [normalizedEmail, input.full_name, passwordHash],
+      );
+
   const user = userResult.rows[0];
+  if (!user) {
+    throw new AppError(409, 'EMAIL_TAKEN', 'Este e-mail já está cadastrado');
+  }
+
+  if (incompleteUserId) {
+    await revokeAllSessionsService(pool, user.id);
+  }
 
   try {
     const verificationToken = await issueEmailVerificationToken(pool, user.id);
@@ -256,55 +314,65 @@ export async function completeOnboardingService(
   userId: string,
   workspaceId: string,
 ) {
-  const result = await pool.query<{ onboarded_at: string }>(
-    `UPDATE workspace_members
-     SET onboarded_at = COALESCE(onboarded_at, now())
-     WHERE workspace_id = $1 AND user_id = $2 AND removed_at IS NULL
-     RETURNING onboarded_at`,
-    [workspaceId, userId],
-  );
-  if (!result.rows[0]) {
-    throw new AppError(404, 'NOT_FOUND', 'Membro do workspace não encontrado');
+  try {
+    const result = await pool.query<{ onboarded_at: string }>(
+      `UPDATE workspace_members
+       SET onboarded_at = COALESCE(onboarded_at, now())
+       WHERE workspace_id = $1 AND user_id = $2 AND removed_at IS NULL
+       RETURNING onboarded_at`,
+      [workspaceId, userId],
+    );
+    if (!result.rows[0]) {
+      throw new AppError(404, 'NOT_FOUND', 'Membro do workspace não encontrado');
+    }
+    return { onboarded_at: result.rows[0].onboarded_at };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    mapDbError(err);
   }
-  return { onboarded_at: result.rows[0].onboarded_at };
 }
 
 export async function getOnboardingStatus(pool: Pool, userId: string, workspaceId?: string) {
-  const workspaces = await pool.query<{
-    workspace_id: string;
-    plan: string;
-    onboarded_at: string | null;
-    status: string;
-  }>(
-    `SELECT wm.workspace_id, w.plan, wm.onboarded_at, COALESCE(w.status, 'active') AS status
-     FROM workspace_members wm
-     JOIN workspaces w ON w.id = wm.workspace_id
-     WHERE wm.user_id = $1
-       AND wm.removed_at IS NULL
-       AND w.deleted_at IS NULL
-     ORDER BY wm.last_accessed_at DESC NULLS LAST, wm.joined_at DESC
-     LIMIT 1`,
-    [userId],
-  );
+  try {
+    const workspaces = await pool.query<{
+      workspace_id: string;
+      plan: string;
+      onboarded_at: string | null;
+      status: string;
+    }>(
+      `SELECT wm.workspace_id, w.plan, wm.onboarded_at, COALESCE(w.status, 'active') AS status
+       FROM workspace_members wm
+       JOIN workspaces w ON w.id = wm.workspace_id
+       WHERE wm.user_id = $1
+         AND wm.removed_at IS NULL
+         AND w.deleted_at IS NULL
+       ORDER BY wm.last_accessed_at DESC NULLS LAST, wm.joined_at DESC
+       LIMIT 1`,
+      [userId],
+    );
 
-  const active =
-    workspaceId != null
-      ? workspaces.rows.find((row) => row.workspace_id === workspaceId) ?? workspaces.rows[0]
-      : workspaces.rows[0];
+    const active =
+      workspaceId != null
+        ? workspaces.rows.find((row) => row.workspace_id === workspaceId) ?? workspaces.rows[0]
+        : workspaces.rows[0];
 
-  const userResult = await pool.query<{ email_verified_at: string | null }>(
-    `SELECT email_verified_at FROM users WHERE id = $1 AND deleted_at IS NULL`,
-    [userId],
-  );
+    const userResult = await pool.query<{ email_verified_at: string | null }>(
+      `SELECT email_verified_at FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId],
+    );
 
-  return {
-    has_workspace: workspaces.rows.length > 0,
-    onboarded: Boolean(active?.onboarded_at),
-    plan: active?.plan ?? null,
-    workspace_status: active?.status ?? null,
-    email_verified: Boolean(userResult.rows[0]?.email_verified_at),
-    workspace_id: active?.workspace_id ?? null,
-  };
+    return {
+      has_workspace: workspaces.rows.length > 0,
+      onboarded: Boolean(active?.onboarded_at),
+      plan: active?.plan ?? null,
+      workspace_status: active?.status ?? null,
+      email_verified: Boolean(userResult.rows[0]?.email_verified_at),
+      workspace_id: active?.workspace_id ?? null,
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    mapDbError(err);
+  }
 }
 
 function isMissingRelationError(err: unknown, relation: string): boolean {

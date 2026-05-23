@@ -42,7 +42,11 @@ function slugifyPreview(name: string) {
 }
 
 export default function SignupWorkspacePage() {
-  return <AuthShell>{(theme) => <WorkspaceForm theme={theme} p={palette[theme]} />}</AuthShell>;
+  return (
+    <AuthShell showTestimonial={false}>
+      {(theme) => <WorkspaceForm theme={theme} p={palette[theme]} />}
+    </AuthShell>
+  );
 }
 
 function WorkspaceForm({

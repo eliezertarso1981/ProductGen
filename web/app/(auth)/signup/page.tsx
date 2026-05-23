@@ -93,7 +93,11 @@ function passwordStrength(password: string) {
 }
 
 export default function SignupPage() {
-  return <AuthShell>{(theme) => <SignupForm theme={theme} p={palette[theme]} />}</AuthShell>;
+  return (
+    <AuthShell showTestimonial={false}>
+      {(theme) => <SignupForm theme={theme} p={palette[theme]} />}
+    </AuthShell>
+  );
 }
 
 function SignupForm({
